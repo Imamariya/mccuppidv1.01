@@ -145,7 +145,7 @@ router.post('/change-password', async (req: Request, res: Response) => {
     }
 
     // Find user
-    const user = await User.findById(userId);
+    const user = await User.findById(userId) as any;
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });

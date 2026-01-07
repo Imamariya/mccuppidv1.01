@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router, Response, Request } from 'express';
 import { Chat } from '../models/Chat';
 import { Notification } from '../models/Notification';
 import { AuthRequest, authMiddleware } from '../middleware/auth';

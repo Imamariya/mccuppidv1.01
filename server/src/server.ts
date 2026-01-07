@@ -32,7 +32,7 @@ app.use(cors({
 }));
 
 // Health check
-app.get('/health', (req, res: Response) => {
+app.get('/health', (req: any, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date() });
 });
 
@@ -44,7 +44,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 
 // Socket.IO for real-time features
-io.on('connection', (socket) => {
+io.on('connection', (socket: any) => {
   console.log(`User connected: ${socket.id}`);
 
   // Join user to their private room

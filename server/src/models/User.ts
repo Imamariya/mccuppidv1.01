@@ -93,12 +93,12 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ 'location': '2dsphere' });
 
 // Hash password before saving
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function(next: any) {
   if (!this.isModified('password')) return next();
   
   try {
     const salt = await bcryptjs.genSalt(parseInt(process.env.BCRYPT_ROUNDS || '10'));
-    this.password = await bcryptjs.hash(this.password, salt);
+    (this as any).password = await bcryptjs.hash(this.password, salt);
     next();
   } catch (error) {
     next(error as Error);
@@ -110,4 +110,5 @@ userSchema.methods.comparePassword = async function(enteredPassword: string): Pr
   return await bcryptjs.compare(enteredPassword, this.password);
 };
 
-export const User = mongoose.model('User', userSchema);
+export { mongoose };
+export default mongoose.model('User', userSchema);

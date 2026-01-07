@@ -1,12 +1,12 @@
-import { Router, Response } from 'express';
-import { User } from '../models/User';
+import { Router, Response, Request } from 'express';
+import User from '../models/User';
 import { generateToken } from '../utils/jwt';
 import { AuthRequest, authMiddleware } from '../middleware/auth';
 
 const router = Router();
 
 // Register
-router.post('/register', async (req, res) => {
+router.post('/register', async (req: Request, res: Response) => {
   try {
     const { email, password, name } = req.body;
 
@@ -17,7 +17,7 @@ router.post('/register', async (req, res) => {
     const user = new User({ email, password, name });
     await user.save();
 
-    const token = generateToken(user._id.toString(), 'user');
+    const token = generateToken((user._id as any).toString(), 'user');
     res.status(201).json({ token, userId: user._id });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -25,11 +25,11 @@ router.post('/register', async (req, res) => {
 });
 
 // Login
-router.post('/login', async (req, res) => {
+router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }) as any;
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }

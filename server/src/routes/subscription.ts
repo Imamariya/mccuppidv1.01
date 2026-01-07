@@ -1,6 +1,6 @@
-import { Router, Response } from 'express';
+import { Router, Response, Request } from 'express';
 import { Subscription } from '../models/Subscription';
-import { User } from '../models/User';
+import User from '../models/User';
 import { AuthRequest, authMiddleware } from '../middleware/auth';
 
 const router = Router();

@@ -1,5 +1,5 @@
-import { Router, Response } from 'express';
-import { User } from '../models/User';
+import { Router, Response, Request } from 'express';
+import User from '../models/User';
 import { Match } from '../models/Match';
 import { AuthRequest, authMiddleware } from '../middleware/auth';
 
@@ -117,7 +117,7 @@ router.get('/mutual', authMiddleware, async (req: AuthRequest, res: Response) =>
       action: 'like'
     }).select('targetUserId');
 
-    const userIds = userMatches.map(m => m.targetUserId);
+    const userIds = userMatches.map((m: any) => m.targetUserId);
 
     const mutual = await Match.find({
       userId: { $in: userIds },
