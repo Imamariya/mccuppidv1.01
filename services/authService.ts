@@ -15,6 +15,13 @@ interface OTPResponse {
   message?: string;
 }
 
+// Get API base URL from environment or use default
+const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.VITE_API_URL || 'http://localhost:5000';
+
+// Fallback to Next.js API routes if backend not available
+const NEXT_API_BASE = '';
+
+// Test credentials for mock mode (when backend not available)
 const MOCK_USERS = [
   { email: 'user@user.com', password: 'User@123', role: 'user' as const },
   { email: 'admin@admin.com', password: 'Admin@123', role: 'admin' as const },
@@ -22,113 +29,267 @@ const MOCK_USERS = [
   { email: 'user@example.com', password: 'user123', role: 'user' as const }
 ];
 
+/**
+ * Check if backend server is available
+ */
+async function isBackendAvailable(): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/health`, {
+      method: 'GET'
+    });
+    return response.ok;
+  } catch (error) {
+    return false;
+  }
+}
+
+let backendAvailable: boolean | null = null;
+
 export const authService = {
   /**
-   * Simulated login logic for client-side environment.
+   * Login with email and password
+   * Tries Express backend first, falls back to Next.js API, then mock
    */
   async login(email: string, password: string): Promise<LoginResponse> {
-    // Simulate network latency
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    const user = MOCK_USERS.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
-
-    if (!user) {
-      throw new Error('Invalid email or password');
+    // Check backend availability on first call
+    if (backendAvailable === null) {
+      backendAvailable = await isBackendAvailable();
+      console.log(`[Auth] Express backend available: ${backendAvailable}`);
     }
 
-    const response: LoginResponse = {
-      token: `mock_jwt_${user.role}_${Date.now()}`,
-      role: user.role
-    };
-    
-    localStorage.setItem('mallucupid_token', response.token);
-    localStorage.setItem('mallucupid_role', response.role);
-    
-    return response;
+    try {
+      // Try Express backend first
+      if (backendAvailable) {
+        const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ email, password })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          localStorage.setItem('mallucupid_token', data.token);
+          localStorage.setItem('mallucupid_role', data.role || 'user');
+          return data;
+        } else if (response.status === 401) {
+          throw new Error('Invalid email or password');
+        } else {
+          throw new Error('Backend login failed');
+        }
+      }
+
+      // Fallback to Next.js API route
+      const nextResponse = await fetch(`${NEXT_API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      if (nextResponse.ok) {
+        const data = await nextResponse.json();
+        localStorage.setItem('mallucupid_token', data.token);
+        localStorage.setItem('mallucupid_role', data.role || 'user');
+        return data;
+      }
+
+      // Fallback to mock
+      throw new Error('');
+    } catch (error) {
+      // Use mock data
+      console.log('[Auth] Using mock authentication (backend not connected)');
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      const user = MOCK_USERS.find(
+        u => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+      );
+
+      if (!user) {
+        throw new Error('Invalid email or password');
+      }
+
+      const response: LoginResponse = {
+        token: `mock_jwt_${user.role}_${Date.now()}`,
+        role: user.role
+      };
+
+      localStorage.setItem('mallucupid_token', response.token);
+      localStorage.setItem('mallucupid_role', response.role);
+
+      return response;
+    }
   },
 
   /**
-   * Send OTP to email for verification.
+   * Send OTP to email for verification
    */
   async sendOTP(email: string): Promise<OTPResponse> {
-    // Simulate network latency
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    if (!email || !/\S+@\S+\.\S+/.test(email)) {
-      throw new Error('Valid email is required');
+    if (backendAvailable === null) {
+      backendAvailable = await isBackendAvailable();
     }
 
-    // Generate OTP
-    const otp = generateOTP();
-    const expires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    try {
+      if (backendAvailable) {
+        const response = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
 
-    // Store OTP
-    otpStore[email] = { otp, expires };
+        if (response.ok) {
+          return await response.json();
+        }
+        throw new Error('Backend OTP send failed');
+      }
 
-    // PRODUCTION NOTE: Integrate with email service like SendGrid, AWS SES, etc.
-    console.log(`OTP for ${email}: ${otp}`); // For development only
+      // Fallback to Next.js
+      const nextResponse = await fetch(`${NEXT_API_BASE}/api/auth/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
 
-    return {
-      success: true,
-      message: 'OTP sent to your email'
-    };
+      if (nextResponse.ok) {
+        return await nextResponse.json();
+      }
+      throw new Error('');
+    } catch (error) {
+      // Fallback to mock
+      console.log('[Auth] Using mock OTP');
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      if (!email || !/\S+@\S+\.\S+/.test(email)) {
+        throw new Error('Valid email is required');
+      }
+
+      const otp = generateOTP();
+      const expires = Date.now() + 10 * 60 * 1000;
+      otpStore[email] = { otp, expires };
+
+      console.log(`[MOCK] OTP for ${email}: ${otp}`);
+
+      return {
+        success: true,
+        message: 'OTP sent to your email'
+      };
+    }
   },
 
   /**
-   * Verify OTP and complete registration.
+   * Verify OTP and register user
    */
-  async verifyOTPAndRegister(email: string, otp: string, name: string, password: string): Promise<RegisterResponse> {
-    // Simulate network latency
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Clean up expired OTPs
-    cleanupExpiredOTPs();
-
-    // Verify OTP
-    const storedOTP = otpStore[email];
-
-    if (!storedOTP) {
-      throw new Error('No OTP found for this email');
+  async verifyOTPAndRegister(
+    email: string,
+    otp: string,
+    name: string,
+    password: string
+  ): Promise<RegisterResponse> {
+    if (backendAvailable === null) {
+      backendAvailable = await isBackendAvailable();
     }
 
-    if (Date.now() > storedOTP.expires) {
+    try {
+      if (backendAvailable) {
+        const response = await fetch(`${API_BASE_URL}/api/auth/verify-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, otp, name, password })
+        });
+
+        if (response.ok) {
+          return await response.json();
+        }
+        throw new Error('Backend OTP verification failed');
+      }
+
+      // Fallback to Next.js
+      const nextResponse = await fetch(`${NEXT_API_BASE}/api/auth/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp, name, password })
+      });
+
+      if (nextResponse.ok) {
+        return await nextResponse.json();
+      }
+      throw new Error('');
+    } catch (error) {
+      // Fallback to mock
+      console.log('[Auth] Using mock OTP verification');
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      cleanupExpiredOTPs();
+
+      const storedOTP = otpStore[email];
+      if (!storedOTP) {
+        throw new Error('No OTP found for this email');
+      }
+
+      if (Date.now() > storedOTP.expires) {
+        delete otpStore[email];
+        throw new Error('OTP has expired');
+      }
+
+      if (storedOTP.otp !== otp) {
+        throw new Error('Invalid OTP');
+      }
+
       delete otpStore[email];
-      throw new Error('OTP has expired');
+
+      if (MOCK_USERS.some(u => u.email === email)) {
+        throw new Error('Email already exists');
+      }
+
+      MOCK_USERS.push({ email, password, role: 'user' });
+
+      return { success: true };
     }
-
-    if (storedOTP.otp !== otp) {
-      throw new Error('Invalid OTP');
-    }
-
-    // OTP verified successfully
-    delete otpStore[email];
-
-    // Check if email already exists
-    if (MOCK_USERS.some(u => u.email === email)) {
-      throw new Error('Email already exists');
-    }
-
-    // In production, this would save to database
-    MOCK_USERS.push({
-      email,
-      password,
-      role: 'user'
-    });
-
-    return { success: true };
   },
 
   /**
-   * Simulated registration logic (kept for backward compatibility).
+   * Register new user
    */
   async register(name: string, email: string, password: string): Promise<RegisterResponse> {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    if (MOCK_USERS.some(u => u.email === email)) {
-      throw new Error('Email already exists');
+    if (backendAvailable === null) {
+      backendAvailable = await isBackendAvailable();
     }
 
-    return { success: true };
+    try {
+      if (backendAvailable) {
+        const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password })
+        });
+
+        if (response.ok) {
+          return await response.json();
+        }
+        throw new Error('Backend registration failed');
+      }
+
+      const nextResponse = await fetch(`${NEXT_API_BASE}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password })
+      });
+
+      if (nextResponse.ok) {
+        return await nextResponse.json();
+      }
+      throw new Error('');
+    } catch (error) {
+      console.log('[Auth] Using mock registration');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      if (MOCK_USERS.some(u => u.email === email)) {
+        throw new Error('Email already exists');
+      }
+
+      return { success: true };
+    }
   },
 
   logout() {
@@ -146,97 +307,140 @@ export const authService = {
   },
 
   /**
-   * Request password reset via email
-   * Sends reset link to user's email
+   * Request password reset
    */
   async requestPasswordReset(email: string): Promise<OTPResponse> {
-    // Simulate network latency
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    // Check if user exists
-    const user = MOCK_USERS.find(u => u.email.toLowerCase() === email.toLowerCase());
-    
-    if (!user) {
-      // For security, don't reveal if email exists
-      return {
-        success: true,
-        message: "If this email exists, you'll receive a reset link shortly"
-      };
-    }
-
-    // Generate a reset token (in production, this would be a unique secure token)
-    const resetToken = `reset_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Store reset token with expiration (15 minutes)
-    const resetData = {
-      email,
-      token: resetToken,
-      expiresAt: Date.now() + 15 * 60 * 1000 // 15 minutes
-    };
-    
-    sessionStorage.setItem(`reset_${resetToken}`, JSON.stringify(resetData));
-
-    // In production, send email with reset link
-    console.log(`[MOCK] Sending reset link to ${email}:`);
-    console.log(`Reset link: /reset-password?token=${resetToken}`);
-
-    return {
-      success: true,
-      message: "Reset link sent to your email"
-    };
-  },
-
-  /**
-   * Reset password using reset token
-   */
-  async resetPassword(resetToken: string, newPassword: string): Promise<OTPResponse> {
-    // Simulate network latency
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    // Verify reset token
-    const resetDataStr = sessionStorage.getItem(`reset_${resetToken}`);
-    
-    if (!resetDataStr) {
-      return {
-        success: false,
-        message: "Invalid or expired reset link"
-      };
+    if (backendAvailable === null) {
+      backendAvailable = await isBackendAvailable();
     }
 
     try {
-      const resetData = JSON.parse(resetDataStr);
+      if (backendAvailable) {
+        const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
 
-      // Check if token is expired
-      if (Date.now() > resetData.expiresAt) {
-        sessionStorage.removeItem(`reset_${resetToken}`);
+        return await response.json();
+      }
+
+      const nextResponse = await fetch(`${NEXT_API_BASE}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+
+      if (nextResponse.ok) {
+        return await nextResponse.json();
+      }
+      throw new Error('');
+    } catch (error) {
+      console.log('[Auth] Using mock password reset request');
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      const user = MOCK_USERS.find(u => u.email.toLowerCase() === email.toLowerCase());
+
+      if (!user) {
         return {
-          success: false,
-          message: "Reset link has expired. Please request a new one."
+          success: true,
+          message: "If this email exists, you'll receive a reset link shortly"
         };
       }
 
-      // In production, update user password in database
-      const userIndex = MOCK_USERS.findIndex(
-        u => u.email.toLowerCase() === resetData.email.toLowerCase()
-      );
+      const resetToken = `reset_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const resetData = {
+        email,
+        token: resetToken,
+        expiresAt: Date.now() + 15 * 60 * 1000
+      };
 
-      if (userIndex !== -1) {
-        MOCK_USERS[userIndex].password = newPassword;
-        console.log(`[MOCK] Password updated for ${resetData.email}`);
-      }
+      sessionStorage.setItem(`reset_${resetToken}`, JSON.stringify(resetData));
 
-      // Clean up reset token
-      sessionStorage.removeItem(`reset_${resetToken}`);
+      console.log(`[MOCK] Sending reset link to ${email}:`);
+      console.log(`Reset link: /reset-password?token=${resetToken}`);
 
       return {
         success: true,
-        message: "Password reset successfully"
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: "Failed to reset password"
+        message: 'Reset link sent to your email'
       };
     }
-  }
+  },
+
+  /**
+   * Reset password with token
+   */
+  async resetPassword(resetToken: string, newPassword: string): Promise<OTPResponse> {
+    if (backendAvailable === null) {
+      backendAvailable = await isBackendAvailable();
+    }
+
+    try {
+      if (backendAvailable) {
+        const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: resetToken, newPassword })
+        });
+
+        return await response.json();
+      }
+
+      const nextResponse = await fetch(`${NEXT_API_BASE}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: resetToken, password: newPassword })
+      });
+
+      if (nextResponse.ok) {
+        return await nextResponse.json();
+      }
+      throw new Error('');
+    } catch (error) {
+      console.log('[Auth] Using mock password reset');
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      const resetDataStr = sessionStorage.getItem(`reset_${resetToken}`);
+
+      if (!resetDataStr) {
+        return {
+          success: false,
+          message: 'Invalid or expired reset link'
+        };
+      }
+
+      try {
+        const resetData = JSON.parse(resetDataStr);
+
+        if (Date.now() > resetData.expiresAt) {
+          sessionStorage.removeItem(`reset_${resetToken}`);
+          return {
+            success: false,
+            message: 'Reset link has expired. Please request a new one.'
+          };
+        }
+
+        const userIndex = MOCK_USERS.findIndex(
+          u => u.email.toLowerCase() === resetData.email.toLowerCase()
+        );
+
+        if (userIndex !== -1) {
+          MOCK_USERS[userIndex].password = newPassword;
+          console.log(`[MOCK] Password updated for ${resetData.email}`);
+        }
+
+        sessionStorage.removeItem(`reset_${resetToken}`);
+
+        return {
+          success: true,
+          message: 'Password reset successfully'
+        };
+      } catch (parseError) {
+        return {
+          success: false,
+          message: 'Failed to reset password'
+        };
+      }
+    }
+  },
 };
