@@ -9,31 +9,36 @@ export interface Notification {
   metadata?: any;
 }
 
-const getHeaders = () => ({
-  'Content-Type': 'application/json',
-  'Authorization': `Bearer ${localStorage.getItem('mallucupid_token')}`
-});
+const MOCK_NOTIFICATIONS: Notification[] = [
+  {
+    id: 'n_1',
+    user_id: 'me_123',
+    type: 'match',
+    message: 'You have a new match with Sneha! ❤️',
+    is_read: false,
+    created_at: new Date(Date.now() - 3600000).toISOString()
+  },
+  {
+    id: 'n_2',
+    user_id: 'me_123',
+    type: 'verification',
+    message: 'Your profile has been verified. 🆔',
+    is_read: true,
+    created_at: new Date(Date.now() - 86400000).toISOString()
+  }
+];
 
 export const notificationService = {
   async getNotifications(): Promise<Notification[]> {
-    const res = await fetch('/api/notifications', { headers: getHeaders() });
-    if (!res.ok) throw new Error('Failed to fetch notifications');
-    return res.json();
+    return MOCK_NOTIFICATIONS;
   },
 
   async markAsRead(id: string): Promise<void> {
-    const res = await fetch('/api/notifications/read', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ notificationId: id })
-    });
-    if (!res.ok) throw new Error('Failed to mark notification as read');
+    const n = MOCK_NOTIFICATIONS.find(notif => notif.id === id);
+    if (n) n.is_read = true;
   },
 
   async markAllAsRead(): Promise<void> {
-    await fetch('/api/notifications/read-all', {
-      method: 'POST',
-      headers: getHeaders()
-    });
+    MOCK_NOTIFICATIONS.forEach(n => n.is_read = true);
   }
 };

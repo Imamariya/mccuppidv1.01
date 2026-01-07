@@ -2,12 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import EditProfileForm from '../../../components/profile/EditProfileForm';
 import ProfileImageManager from '../../../components/profile/ProfileImageManager';
+import ProfilePreview from '../../../components/profile/ProfilePreview';
 import { profileService } from '../../../services/profileService';
 
 const EditProfilePage: React.FC = () => {
   const [profileData, setProfileData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   useEffect(() => {
@@ -39,7 +41,6 @@ const EditProfilePage: React.FC = () => {
       
       if (response.success) {
         setSaveStatus('success');
-        // Instantly update local data if needed, but the response already contains it
         setTimeout(() => {
           window.location.hash = '#/user/dashboard';
         }, 1500);
@@ -75,13 +76,21 @@ const EditProfilePage: React.FC = () => {
           <h1 className="text-white text-xl font-bold tracking-tight">Edit Profile</h1>
         </div>
 
-        <button 
-          onClick={handleSave}
-          disabled={isSaving}
-          className="px-6 py-2.5 bg-premium-green text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-full shadow-lg shadow-emerald-500/10 active:scale-95 transition-all disabled:opacity-50"
-        >
-          {isSaving ? "SAVING..." : "SAVE"}
-        </button>
+        <div className="flex items-center space-x-2">
+          <button 
+            onClick={() => setIsPreviewOpen(true)}
+            className="px-4 py-2.5 bg-zinc-900 text-zinc-400 text-[10px] font-black uppercase tracking-widest rounded-full border border-zinc-800 active:scale-95 transition-all"
+          >
+            Preview
+          </button>
+          <button 
+            onClick={handleSave}
+            disabled={isSaving}
+            className="px-6 py-2.5 bg-premium-green text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-full shadow-lg shadow-emerald-500/10 active:scale-95 transition-all disabled:opacity-50"
+          >
+            {isSaving ? "SAVING..." : "SAVE"}
+          </button>
+        </div>
       </header>
 
       <main className="flex-1 overflow-y-auto px-6 py-8 space-y-10 max-w-md mx-auto w-full pb-24">
@@ -109,6 +118,12 @@ const EditProfilePage: React.FC = () => {
           setData={setProfileData} 
         />
       </main>
+
+      <ProfilePreview 
+        isOpen={isPreviewOpen} 
+        onClose={() => setIsPreviewOpen(false)} 
+        data={profileData}
+      />
 
       <div className="fixed bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent" />
     </div>

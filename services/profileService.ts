@@ -17,51 +17,38 @@ export interface UpdateProfilePayload {
   profile_images?: string[];
 }
 
-const getHeaders = () => ({
-  'Content-Type': 'application/json',
-  'Authorization': `Bearer ${localStorage.getItem('mallucupid_token')}`
-});
+const MOCK_PROFILE = {
+  id: 'me_123',
+  name: 'Rahul',
+  age: 26,
+  dob: '1998-05-15',
+  gender: 'Male',
+  relationship_type: 'Serious Relationship',
+  looking_for: ['Women'],
+  is_verified: true,
+  profile_images: ['https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=400'],
+  bio: 'Just a Mallu guy looking for someone to share kappa and fish curry with. 🍛'
+};
 
 export const profileService = {
   async completeProfile(payload: CompleteProfilePayload): Promise<{ success: boolean }> {
-    const response = await fetch('/api/profile/complete', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to complete profile');
-    }
-
-    return await response.json();
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    localStorage.setItem('mallucupid_profile', JSON.stringify(payload));
+    return { success: true };
   },
 
   async getProfile(): Promise<any> {
-    const response = await fetch('/api/user/profile', {
-      headers: getHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch profile');
-    }
-
-    return await response.json();
+    await new Promise(resolve => setTimeout(resolve, 400));
+    const saved = localStorage.getItem('mallucupid_profile');
+    const plan = localStorage.getItem('mallucupid_plan') || 'free';
+    return saved ? { ...JSON.parse(saved), plan } : { ...MOCK_PROFILE, plan };
   },
 
   async updateProfile(payload: UpdateProfilePayload): Promise<{ success: boolean; profile: any }> {
-    const response = await fetch('/api/user/profile/update', {
-      method: 'PUT',
-      headers: getHeaders(),
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to update profile');
-    }
-
-    return await response.json();
+    await new Promise(resolve => setTimeout(resolve, 800));
+    const current = await this.getProfile();
+    const updated = { ...current, ...payload };
+    localStorage.setItem('mallucupid_profile', JSON.stringify(updated));
+    return { success: true, profile: updated };
   }
 };

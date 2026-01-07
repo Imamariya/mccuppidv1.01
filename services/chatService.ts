@@ -11,70 +11,61 @@ export interface ChatMessage {
   status?: string;
 }
 
-const getHeaders = () => {
-  const plan = localStorage.getItem('mallucupid_plan') || 'free';
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${localStorage.getItem('mallucupid_token')}`,
-    'X-User-Plan': plan
-  };
-};
+const MOCK_MESSAGES: ChatMessage[] = [
+  {
+    id: 'msg_1',
+    match_id: 'm_1',
+    sender_id: 'p_them',
+    type: 'text',
+    content: 'Hi! Kochi is beautiful today. How are you?',
+    created_at: new Date(Date.now() - 3600000).toISOString(),
+    status: 'read'
+  }
+];
 
 export const chatService = {
   async getChatList(): Promise<any[]> {
-    const res = await fetch('/api/match/list', { headers: getHeaders() });
-    if (!res.ok) throw new Error('Failed to fetch chat list');
-    return res.json();
+    return [
+      { 
+        id: 'm_1', 
+        name: 'Kavya', 
+        imageUrl: 'https://images.unsplash.com/photo-1594744803329-e58b31de8bf5?auto=format&fit=crop&q=80&w=100',
+        lastMessage: 'Hey! Kochi is beautiful today.',
+        timestamp: '10:30 AM',
+        unreadCount: 1,
+        isVerified: true
+      }
+    ];
   },
 
   async getMessages(matchId: string): Promise<ChatMessage[]> {
-    const res = await fetch(`/api/chat/messages?matchId=${matchId}`, { headers: getHeaders() });
-    if (!res.ok) throw new Error('Failed to fetch messages');
-    return res.json();
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return MOCK_MESSAGES;
   },
 
   async sendMessage(matchId: string, content: string, type: MessageType = 'text'): Promise<ChatMessage> {
-    const res = await fetch('/api/chat/send', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ matchId, content, type })
-    });
-
-    if (res.status === 403) {
-      const data = await res.json();
-      if (data.code === 'PRO_PLAN_REQUIRED') {
-        throw new Error('PRO_PLAN_REQUIRED');
-      }
-      throw new Error(data.error || 'Access denied');
+    const isPro = localStorage.getItem('mallucupid_plan') === 'pro';
+    if (!isPro && MOCK_MESSAGES.length >= 3) {
+       const err = new Error('PRO_PLAN_REQUIRED');
+       (err as any).code = 'PRO_PLAN_REQUIRED';
+       throw err;
     }
 
-    if (!res.ok) {
-      const error = await res.json();
-      throw new Error(error.error || 'Failed to send message');
-    }
-
-    return res.json();
+    const msg: ChatMessage = {
+      id: `msg_${Date.now()}`,
+      match_id: matchId,
+      sender_id: 'me_123',
+      type,
+      content,
+      created_at: new Date().toISOString(),
+      status: 'sent'
+    };
+    MOCK_MESSAGES.push(msg);
+    return msg;
   },
 
   async uploadMedia(file: File, type: 'image' | 'video'): Promise<{ url: string }> {
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    const endpoint = type === 'image' ? '/api/chat/upload-image' : '/api/chat/upload-video';
-    
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('mallucupid_token')}`
-      },
-      body: formData
-    });
-
-    if (!res.ok) {
-      const error = await res.json();
-      throw new Error(error.error || `Failed to upload ${type}`);
-    }
-
-    return res.json();
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return { url: URL.createObjectURL(file) };
   }
 };

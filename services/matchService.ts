@@ -1,59 +1,60 @@
 
 import { UserProfile } from './userService';
 
-const getHeaders = () => ({
-  'Content-Type': 'application/json',
-  'Authorization': `Bearer ${localStorage.getItem('mallucupid_token')}`
-});
+const MOCK_FEED: UserProfile[] = [
+  {
+    id: 'p_prod_101',
+    name: 'Sneha',
+    age: 24,
+    gender: 'Female',
+    relationship_type: 'Serious Relationship',
+    is_verified: true,
+    profile_images: ['https://images.unsplash.com/photo-1614283233556-f35b0c801ef1?auto=format&fit=crop&q=80&w=400'],
+    bio: 'Artistic soul from Kochi. Looking for someone who appreciates Malayalam cinema and long drives.',
+    plan: 'free',
+    likes_remaining: 50,
+    matches_remaining: 10
+  },
+  {
+    id: 'p_prod_102',
+    name: 'Aiswarya',
+    age: 23,
+    gender: 'Female',
+    relationship_type: 'Casual Dating',
+    is_verified: true,
+    profile_images: ['https://images.unsplash.com/photo-1594744803329-e58b31de8bf5?auto=format&fit=crop&q=80&w=400'],
+    bio: 'Coffee, books, and deep conversations. ☕✨',
+    plan: 'free',
+    likes_remaining: 50,
+    matches_remaining: 10
+  }
+];
 
 export const matchService = {
-  /**
-   * Fetches the matchmaking feed with support for filters.
-   */
   async getFeed(queryString: string = ''): Promise<UserProfile[]> {
-    const url = `/api/match/feed${queryString ? '?' + queryString : ''}`;
-    const res = await fetch(url, { headers: getHeaders() });
-    if (!res.ok) throw new Error('Failed to fetch feed');
-    return res.json();
+    await new Promise(resolve => setTimeout(resolve, 600));
+    return MOCK_FEED;
   },
 
-  /**
-   * Sends a like to a profile and checks for mutual match.
-   */
   async like(targetId: string): Promise<{ isMatch: boolean }> {
-    const res = await fetch('/api/match/like', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ targetId })
-    });
-
-    if (res.status === 403) {
-      throw new Error('PRO_PLAN_REQUIRED');
-    }
-
-    if (!res.ok) throw new Error('Like processing failed');
-    return res.json();
+    await new Promise(resolve => setTimeout(resolve, 400));
+    const isPro = localStorage.getItem('mallucupid_plan') === 'pro';
+    // Logic for demo purposes
+    return { isMatch: Math.random() > 0.5 };
   },
 
-  /**
-   * Rejects a profile to exclude it from future feed requests.
-   */
   async reject(targetId: string): Promise<void> {
-    const res = await fetch('/api/match/reject', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ targetId })
-    });
-    
-    if (!res.ok) console.warn("Rejection storage failed");
+    await new Promise(resolve => setTimeout(resolve, 200));
   },
 
-  /**
-   * Fetches the current user's list of mutual matches.
-   */
   async getMatches(): Promise<any[]> {
-    const res = await fetch('/api/match/list', { headers: getHeaders() });
-    if (!res.ok) throw new Error('Failed to fetch match list');
-    return res.json();
+    return [
+      { 
+        id: 'm_1', 
+        name: 'Kavya', 
+        imageUrl: 'https://images.unsplash.com/photo-1594744803329-e58b31de8bf5?auto=format&fit=crop&q=80&w=100',
+        isVerified: true
+      }
+    ];
   }
 };

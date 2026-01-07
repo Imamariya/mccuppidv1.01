@@ -59,6 +59,12 @@ const AdminDashboard: React.FC = () => {
     setImages(prev => prev.filter(i => i.id !== id));
   };
 
+  // Fix: Added missing handleRejectImage to correctly handle image rejection
+  const handleRejectImage = async (id: string) => {
+    await adminService.rejectImage(id);
+    setImages(prev => prev.filter(i => i.id !== id));
+  };
+
   const handleUserAction = (id: string, action: 'suspend' | 'ban' | 'reinstate') => {
     if (action === 'reinstate') {
       adminService.updateUserStatus(id, 'reinstate').then(loadData);
@@ -160,7 +166,7 @@ const AdminDashboard: React.FC = () => {
               <ImageModeration 
                 images={images} 
                 onApprove={handleApproveImage} 
-                onReject={handleApproveImage} // Re-using as demo, should be reject
+                onReject={handleRejectImage} 
               />
             )}
             {activeTab === 'users' && (
