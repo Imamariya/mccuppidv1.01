@@ -2,8 +2,14 @@
 import React from 'react';
 import { AdminUser } from '../../services/adminService';
 
+// Extending type for admin view to include plan
+interface AdminUserWithPlan extends AdminUser {
+  plan?: 'free' | 'pro';
+  expires_at?: string;
+}
+
 interface UserManagementProps {
-  users: AdminUser[];
+  users: AdminUserWithPlan[];
   onAction: (userId: string, action: 'suspend' | 'ban' | 'reinstate') => void;
 }
 
@@ -15,9 +21,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAction }) => {
           <thead>
             <tr className="border-b border-zinc-800 bg-black/20 text-zinc-500 text-[10px] font-bold uppercase tracking-widest">
               <th className="px-6 py-4">User</th>
+              <th className="px-6 py-4">Plan</th>
               <th className="px-6 py-4">Status</th>
               <th className="px-6 py-4">Verification</th>
-              <th className="px-6 py-4">Joined</th>
               <th className="px-6 py-4 text-right">Actions</th>
             </tr>
           </thead>
@@ -27,6 +33,13 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAction }) => {
                 <td className="px-6 py-4">
                   <div className="text-sm font-bold text-white">{user.name}</div>
                   <div className="text-xs text-zinc-500">{user.email}</div>
+                </td>
+                <td className="px-6 py-4">
+                  <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${
+                    user.plan === 'pro' ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' : 'bg-zinc-800 text-zinc-400'
+                  }`}>
+                    {user.plan || 'Free'}
+                  </span>
                 </td>
                 <td className="px-6 py-4">
                   <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${
@@ -40,13 +53,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAction }) => {
                 </td>
                 <td className="px-6 py-4">
                   {user.is_verified ? (
-                    <span className="text-emerald-500">Verified</span>
+                    <span className="text-emerald-500 text-xs">Verified</span>
                   ) : (
-                    <span className="text-zinc-600">Unverified</span>
+                    <span className="text-zinc-600 text-xs">Unverified</span>
                   )}
-                </td>
-                <td className="px-6 py-4 text-zinc-500 text-xs">
-                  {new Date(user.joinedAt).toLocaleDateString()}
                 </td>
                 <td className="px-6 py-4 text-right space-x-2">
                   {user.status === 'Suspended' || user.status === 'Banned' ? (

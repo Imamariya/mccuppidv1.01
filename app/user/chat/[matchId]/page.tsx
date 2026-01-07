@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import ChatBubble from '../../../../components/user/ChatBubble';
+import ProUpgradeModal from '../../../../components/user/ProUpgradeModal';
 import { chatService, ChatMessage } from '../../../../services/chatService';
 import { userService, UserProfile } from '../../../../services/userService';
 
@@ -13,20 +14,22 @@ const ChatPage: React.FC<ChatPageProps> = ({ matchId }) => {
   const [input, setInput] = useState('');
   const [me, setMe] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const fetchData = async () => {
+    try {
+      setMe(await userService.getProfile());
+      setMessages(await chatService.getMessages(matchId));
+    } catch (err) {
+      console.error("Chat Init Error:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const initChat = async () => {
-      try {
-        setMe(await userService.getProfile());
-        setMessages(await chatService.getMessages(matchId));
-      } catch (err) {
-        console.error("Chat Init Error:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    initChat();
+    fetchData();
   }, [matchId]);
 
   useEffect(() => {
@@ -37,23 +40,30 @@ const ChatPage: React.FC<ChatPageProps> = ({ matchId }) => {
     e.preventDefault();
     if (!input.trim() || !me || !me.is_verified) return;
 
-    const newMsg: ChatMessage = {
-      id: Date.now().toString(),
-      text: input,
-      senderId: me.id,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-
-    setMessages([...messages, newMsg]);
-    setInput('');
     try {
       await chatService.sendMessage(matchId, input);
-    } catch (err) {
-      console.error("Send Error:", err);
+      
+      const newMsg: ChatMessage = {
+        id: Date.now().toString(),
+        text: input,
+        senderId: me.id,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+
+      setMessages([...messages, newMsg]);
+      setInput('');
+    } catch (err: any) {
+      if (err.message === 'PRO_PLAN_REQUIRED') {
+        setShowUpgradeModal(true);
+      } else {
+        alert(err.message);
+      }
     }
   };
 
   if (isLoading) return null;
+
+  const isLimitReached = me?.plan === 'free' && messages.filter(m => m.senderId === me.id).length >= 3;
 
   return (
     <div className="flex flex-col h-screen bg-zinc-950">
@@ -81,6 +91,17 @@ const ChatPage: React.FC<ChatPageProps> = ({ matchId }) => {
             timestamp={msg.timestamp} 
           />
         ))}
+        {isLimitReached && (
+          <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-3xl text-center space-y-3 animate-fade-in mt-6">
+            <p className="text-zinc-400 text-xs">You've reached your free message limit for this match.</p>
+            <button 
+              onClick={() => setShowUpgradeModal(true)}
+              className="text-yellow-500 text-[10px] font-black uppercase tracking-widest bg-yellow-500/10 px-4 py-2 rounded-full border border-yellow-500/20"
+            >
+              Upgrade to Pro
+            </button>
+          </div>
+        )}
         <div ref={scrollRef} />
       </main>
 
@@ -96,19 +117,30 @@ const ChatPage: React.FC<ChatPageProps> = ({ matchId }) => {
             type="text" 
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            disabled={!me?.is_verified}
-            placeholder={me?.is_verified ? "Message..." : "Verification pending..."}
+            disabled={!me?.is_verified || isLimitReached}
+            placeholder={isLimitReached ? "Upgrade to continue..." : (me?.is_verified ? "Message..." : "Verification pending...")}
             className="w-full bg-zinc-900 border border-zinc-800 text-white pl-6 pr-14 py-4 rounded-full focus:border-emerald-500 outline-none transition-all placeholder:text-zinc-700 font-medium disabled:opacity-50"
           />
           <button 
             type="submit"
-            disabled={!input.trim() || !me?.is_verified}
+            disabled={!input.trim() || !me?.is_verified || isLimitReached}
             className="absolute right-2 top-2 bottom-2 w-12 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/20 active:scale-95 transition-transform disabled:opacity-30"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
           </button>
         </form>
       </footer>
+
+      <ProUpgradeModal 
+        isOpen={showUpgradeModal} 
+        onClose={() => setShowUpgradeModal(false)} 
+        reason="messaging"
+        onSuccess={() => {
+          setShowUpgradeModal(false);
+          localStorage.setItem('mallucupid_plan', 'pro');
+          fetchData();
+        }}
+      />
     </div>
   );
 };

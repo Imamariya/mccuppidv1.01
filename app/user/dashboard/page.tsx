@@ -4,6 +4,7 @@ import BottomNav from '../../../components/user/BottomNav';
 import VerificationBanner from '../../../components/user/VerificationBanner';
 import DiscoverCard from '../../../components/user/DiscoverCard';
 import MatchListItem from '../../../components/user/MatchListItem';
+import ProUpgradeModal from '../../../components/user/ProUpgradeModal';
 import { userService, UserProfile } from '../../../services/userService';
 import { matchService } from '../../../services/matchService';
 import { chatService } from '../../../services/chatService';
@@ -15,27 +16,28 @@ const UserDashboard: React.FC = () => {
   const [matches, setMatches] = useState<any[]>([]);
   const [chats, setChats] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Upgrade Modal State
+  const [upgradeReason, setUpgradeReason] = useState<'likes' | 'matches' | 'messaging' | null>(null);
+
+  const fetchData = async () => {
+    try {
+      const p = await userService.getProfile();
+      setProfile(p);
+      const f = await matchService.getFeed();
+      setFeed(f);
+    } catch (err) {
+      console.error("Dashboard Load Error:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const p = await userService.getProfile();
-        setProfile(p);
-        
-        // Initial data based on default tab
-        const f = await matchService.getFeed();
-        setFeed(f);
-      } catch (err) {
-        console.error("Dashboard Load Error:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
     fetchData();
   }, []);
 
   useEffect(() => {
-    // Refresh tab-specific data
     const refreshTabData = async () => {
       if (activeTab === 1) setMatches(await matchService.getMatches());
       if (activeTab === 2) setChats(await chatService.getChatList());
@@ -44,13 +46,25 @@ const UserDashboard: React.FC = () => {
   }, [activeTab]);
 
   const handleLike = async (id: string) => {
-    setFeed(feed.filter(p => p.id !== id));
-    await matchService.like(id);
+    try {
+      await matchService.like(id);
+      setFeed(feed.filter(p => p.id !== id));
+    } catch (err: any) {
+      if (err.message === 'PRO_PLAN_REQUIRED') {
+        setUpgradeReason('likes');
+      }
+    }
   };
 
   const handleReject = async (id: string) => {
     setFeed(feed.filter(p => p.id !== id));
     await matchService.reject(id);
+  };
+
+  const onUpgradeSuccess = () => {
+    setUpgradeReason(null);
+    localStorage.setItem('mallucupid_plan', 'pro');
+    fetchData();
   };
 
   const renderTab = () => {
@@ -80,7 +94,7 @@ const UserDashboard: React.FC = () => {
                   </svg>
                 </div>
                 <h3 className="text-white text-lg font-bold">No one nearby</h3>
-                <p className="text-zinc-500 text-xs max-w-[200px]">We've run out of local hearts. Check back later or expand your distance.</p>
+                <p className="text-zinc-500 text-xs max-w-[200px]">Check back later or expand your distance.</p>
               </div>
             )}
           </div>
@@ -144,18 +158,34 @@ const UserDashboard: React.FC = () => {
                  )}
                </div>
                <div>
-                 <h2 className="text-white text-2xl font-bold">{profile?.name}, {profile?.age}</h2>
+                 <div className="flex items-center justify-center gap-2">
+                   <h2 className="text-white text-2xl font-bold">{profile?.name}, {profile?.age}</h2>
+                   {profile?.plan === 'pro' && (
+                     <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-black text-[8px] font-black px-1.5 py-0.5 rounded uppercase">PRO</span>
+                   )}
+                 </div>
                  <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest mt-1">{profile?.relationship_type}</p>
                </div>
              </div>
 
              <div className="space-y-4 pt-8">
+               {profile?.plan === 'free' && (
+                 <button 
+                  onClick={() => setUpgradeReason('likes')}
+                  className="w-full p-6 bg-gradient-to-br from-zinc-900 to-zinc-950 border border-yellow-500/20 rounded-3xl text-left flex items-center justify-between group overflow-hidden relative"
+                 >
+                   <div className="relative z-10">
+                     <p className="text-yellow-500 text-[10px] font-black uppercase tracking-[0.2em] mb-1">Upgrade MalluCupid</p>
+                     <h4 className="text-white font-bold">Get Pro Plan for ₹99</h4>
+                     <p className="text-zinc-500 text-xs mt-1">Unlock unlimited messages & likes.</p>
+                   </div>
+                   <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-125 transition-transform duration-700">
+                     <svg className="w-16 h-16 text-yellow-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                   </div>
+                 </button>
+               )}
                <button className="w-full p-4 bg-zinc-900/50 border border-zinc-800 rounded-2xl text-left flex items-center justify-between">
                  <span className="text-white text-sm font-bold uppercase tracking-widest">Edit Profile</span>
-                 <svg className="w-4 h-4 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-               </button>
-               <button className="w-full p-4 bg-zinc-900/50 border border-zinc-800 rounded-2xl text-left flex items-center justify-between">
-                 <span className="text-white text-sm font-bold uppercase tracking-widest">Preferences</span>
                  <svg className="w-4 h-4 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                </button>
                <button 
@@ -176,9 +206,7 @@ const UserDashboard: React.FC = () => {
       <header className="px-6 pt-12 pb-4 flex justify-between items-center z-10">
         <h1 className="text-white text-2xl font-brand italic">MalluCupid</h1>
         <div className="flex space-x-2">
-          <button className="w-10 h-10 bg-zinc-900 rounded-full flex items-center justify-center text-zinc-400">
-             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
-          </button>
+          {profile?.plan === 'pro' && <span className="text-[9px] text-yellow-500 font-black border border-yellow-500/30 px-2 py-1 rounded-lg">PRO ACTIVE</span>}
         </div>
       </header>
 
@@ -189,6 +217,13 @@ const UserDashboard: React.FC = () => {
       </main>
 
       <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} hasUnread={chats.some(c => c.unreadCount > 0)} />
+
+      <ProUpgradeModal 
+        isOpen={upgradeReason !== null} 
+        onClose={() => setUpgradeReason(null)} 
+        reason={upgradeReason || 'messaging'}
+        onSuccess={onUpgradeSuccess}
+      />
     </div>
   );
 };

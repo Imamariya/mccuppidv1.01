@@ -48,7 +48,21 @@ export const chatService = {
   },
 
   async sendMessage(matchId: string, text: string): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 200));
-    console.log(`Sent message to ${matchId}: ${text}`);
+    const res = await fetch('/api/chat/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('mallucupid_token')}`
+      },
+      body: JSON.stringify({ matchId, text })
+    });
+
+    if (res.status === 403) {
+      throw new Error('PRO_PLAN_REQUIRED');
+    }
+
+    if (!res.ok) {
+      throw new Error('Failed to send message');
+    }
   }
 };
