@@ -4,6 +4,8 @@ import DesktopBlocker from './components/DesktopBlocker';
 import LandingPage from './app/page';
 import LoginPage from './app/login/page';
 import SignupPage from './app/signup/page';
+import ForgotPasswordPage from './app/forgot-password/page';
+import ResetPasswordPage from './app/reset-password/page';
 import UserDashboard from './app/user/dashboard/page';
 import AdminDashboard from './app/admin/dashboard/page';
 import ChatPage from './app/user/chat/[matchId]/page';
@@ -56,6 +58,10 @@ const App: React.FC = () => {
       return <LoginPage />;
     case '#/signup':
       return <SignupPage />;
+    case '#/forgot-password':
+      return <ForgotPasswordPage />;
+    case '#/reset-password':
+      return <ResetPasswordPage />;
     case '#/user/dashboard':
       return <UserDashboard />;
     case '#/user/profile/edit':

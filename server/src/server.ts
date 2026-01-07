@@ -13,6 +13,7 @@ import authRoutes from './routes/auth';
 import matchRoutes from './routes/match';
 import chatRoutes from './routes/chat';
 import subscriptionRoutes from './routes/subscription';
+import passwordResetRoutes from './routes/passwordReset';
 
 const app: Express = express();
 const httpServer = createServer(app);
@@ -37,6 +38,7 @@ app.get('/health', (req, res: Response) => {
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/auth', passwordResetRoutes);
 app.use('/api/match', matchRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/subscription', subscriptionRoutes);

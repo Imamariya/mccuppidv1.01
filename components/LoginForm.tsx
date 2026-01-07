@@ -62,13 +62,12 @@ const LoginForm: React.FC = () => {
           <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
             Password
           </label>
-          <button 
-            type="button"
-            onClick={() => console.log("Navigate to /forgot-password")}
+          <a
+            href="#/forgot-password"
             className="text-[10px] font-bold text-emerald-500/80 uppercase hover:text-emerald-400 transition-colors"
           >
             Forgot?
-          </button>
+          </a>
         </div>
         <div className="relative">
           <input

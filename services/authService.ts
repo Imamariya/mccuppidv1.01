@@ -143,5 +143,100 @@ export const authService = {
 
   isAuthenticated() {
     return !!this.getToken();
+  },
+
+  /**
+   * Request password reset via email
+   * Sends reset link to user's email
+   */
+  async requestPasswordReset(email: string): Promise<OTPResponse> {
+    // Simulate network latency
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    // Check if user exists
+    const user = MOCK_USERS.find(u => u.email.toLowerCase() === email.toLowerCase());
+    
+    if (!user) {
+      // For security, don't reveal if email exists
+      return {
+        success: true,
+        message: "If this email exists, you'll receive a reset link shortly"
+      };
+    }
+
+    // Generate a reset token (in production, this would be a unique secure token)
+    const resetToken = `reset_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Store reset token with expiration (15 minutes)
+    const resetData = {
+      email,
+      token: resetToken,
+      expiresAt: Date.now() + 15 * 60 * 1000 // 15 minutes
+    };
+    
+    sessionStorage.setItem(`reset_${resetToken}`, JSON.stringify(resetData));
+
+    // In production, send email with reset link
+    console.log(`[MOCK] Sending reset link to ${email}:`);
+    console.log(`Reset link: /reset-password?token=${resetToken}`);
+
+    return {
+      success: true,
+      message: "Reset link sent to your email"
+    };
+  },
+
+  /**
+   * Reset password using reset token
+   */
+  async resetPassword(resetToken: string, newPassword: string): Promise<OTPResponse> {
+    // Simulate network latency
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    // Verify reset token
+    const resetDataStr = sessionStorage.getItem(`reset_${resetToken}`);
+    
+    if (!resetDataStr) {
+      return {
+        success: false,
+        message: "Invalid or expired reset link"
+      };
+    }
+
+    try {
+      const resetData = JSON.parse(resetDataStr);
+
+      // Check if token is expired
+      if (Date.now() > resetData.expiresAt) {
+        sessionStorage.removeItem(`reset_${resetToken}`);
+        return {
+          success: false,
+          message: "Reset link has expired. Please request a new one."
+        };
+      }
+
+      // In production, update user password in database
+      const userIndex = MOCK_USERS.findIndex(
+        u => u.email.toLowerCase() === resetData.email.toLowerCase()
+      );
+
+      if (userIndex !== -1) {
+        MOCK_USERS[userIndex].password = newPassword;
+        console.log(`[MOCK] Password updated for ${resetData.email}`);
+      }
+
+      // Clean up reset token
+      sessionStorage.removeItem(`reset_${resetToken}`);
+
+      return {
+        success: true,
+        message: "Password reset successfully"
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "Failed to reset password"
+      };
+    }
   }
 };

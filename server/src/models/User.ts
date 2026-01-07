@@ -14,6 +14,14 @@ const userSchema = new mongoose.Schema({
     required: true,
     minlength: 8
   },
+  resetToken: {
+    type: String,
+    default: null
+  },
+  resetTokenExpiry: {
+    type: Date,
+    default: null
+  },
   name: {
     type: String,
     required: true
