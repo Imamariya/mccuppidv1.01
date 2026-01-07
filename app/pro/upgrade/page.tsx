@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import ProPlanCard from '../../../components/pro/ProPlanCard';
+import ProPlanCard from '@/components/pro/ProPlanCard';
 
 const UpgradePage: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);

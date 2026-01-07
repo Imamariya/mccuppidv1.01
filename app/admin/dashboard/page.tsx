@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import AdminStats from '../../../components/admin/AdminStats';
-import VerificationQueue from '../../../components/admin/VerificationQueue';
-import ImageModeration from '../../../components/admin/ImageModeration';
-import UserManagement from '../../../components/admin/UserManagement';
-import AdminActionModal from '../../../components/admin/AdminActionModal';
-import { adminService, AdminStats as StatsType, VerificationRequest, ModerationImage, AdminUser } from '../../../services/adminService';
-import { authService } from '../../../services/authService';
+import AdminStats from '@/components/admin/AdminStats';
+import VerificationQueue from '@/components/admin/VerificationQueue';
+import ImageModeration from '@/components/admin/ImageModeration';
+import UserManagement from '@/components/admin/UserManagement';
+import AdminActionModal from '@/components/admin/AdminActionModal';
+import { adminService, AdminStats as StatsType, VerificationRequest, ModerationImage, AdminUser } from '@/services/adminService';
+import { authService } from '@/services/authService';
 
 type Tab = 'overview' | 'verifications' | 'moderation' | 'users';
 

@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import PaymentSummary from '../../../components/pro/PaymentSummary';
-import PaymentStatus from '../../../components/pro/PaymentStatus';
-import RazorpayButton from '../../../components/pro/RazorpayButton';
-import { paymentService } from '../../../services/paymentService';
+import PaymentSummary from '@/components/pro/PaymentSummary';
+import PaymentStatus from '@/components/pro/PaymentStatus';
+import RazorpayButton from '@/components/pro/RazorpayButton';
+import { paymentService } from '@/services/paymentService';
 
 const CheckoutPage: React.FC = () => {
   const [orderData, setOrderData] = useState<any>(null);

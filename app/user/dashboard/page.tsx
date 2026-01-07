@@ -1,21 +1,21 @@
 
 import React, { useState, useEffect } from 'react';
-import BottomNav from '../../../components/user/BottomNav';
-import VerificationBanner from '../../../components/user/VerificationBanner';
-import DiscoverCard from '../../../components/user/DiscoverCard';
-import MatchListItem from '../../../components/user/MatchListItem';
-import ProUpgradeModal from '../../../components/user/ProUpgradeModal';
-import NotificationBell from '../../../components/notifications/NotificationBell';
-import NotificationList from '../../../components/notifications/NotificationList';
-import FilterModal from '../../../components/user/FilterModal';
-import { userService, UserProfile } from '../../../services/userService';
-import { matchService } from '../../../services/matchService';
-import { chatService } from '../../../services/chatService';
-import { locationService } from '../../../services/locationService';
-import { verificationService } from '../../../services/verificationService';
-import { notificationService, Notification } from '../../../services/notificationService';
-import { socketService } from '../../../services/socketService';
-import { filterService, SearchFilters } from '../../../services/filterService';
+import BottomNav from '@/components/user/BottomNav';
+import VerificationBanner from '@/components/user/VerificationBanner';
+import DiscoverCard from '@/components/user/DiscoverCard';
+import MatchListItem from '@/components/user/MatchListItem';
+import ProUpgradeModal from '@/components/user/ProUpgradeModal';
+import NotificationBell from '@/components/notifications/NotificationBell';
+import NotificationList from '@/components/notifications/NotificationList';
+import FilterModal from '@/components/user/FilterModal';
+import { userService, UserProfile } from '@/services/userService';
+import { matchService } from '@/services/matchService';
+import { chatService } from '@/services/chatService';
+import { locationService } from '@/services/locationService';
+import { verificationService } from '@/services/verificationService';
+import { notificationService, Notification } from '@/services/notificationService';
+import { socketService } from '@/services/socketService';
+import { filterService, SearchFilters } from '@/services/filterService';
 
 const UserDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);

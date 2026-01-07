@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import ChatMessage from '../../../../components/chat/ChatMessage';
-import ChatInput from '../../../../components/chat/ChatInput';
-import UpgradeBlocker from '../../../../components/chat/UpgradeBlocker';
-import ProUpgradeModal from '../../../../components/user/ProUpgradeModal';
-import { chatService, ChatMessage as MessageType, MessageType as MsgKind } from '../../../../services/chatService';
-import { userService, UserProfile } from '../../../../services/userService';
+import ChatMessage from '@/components/chat/ChatMessage';
+import ChatInput from '@/components/chat/ChatInput';
+import UpgradeBlocker from '@/components/chat/UpgradeBlocker';
+import ProUpgradeModal from '@/components/user/ProUpgradeModal';
+import { chatService, ChatMessage as MessageType, MessageType as MsgKind } from '@/services/chatService';
+import { userService, UserProfile } from '@/services/userService';
 
 interface ChatPageProps {
   matchId: string;

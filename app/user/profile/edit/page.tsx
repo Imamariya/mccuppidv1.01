@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import EditProfileForm from '../../../components/profile/EditProfileForm';
-import ProfileImageManager from '../../../components/profile/ProfileImageManager';
-import ProfilePreview from '../../../components/profile/ProfilePreview';
-import { profileService } from '../../../services/profileService';
+import EditProfileForm from '@/components/profile/EditProfileForm';
+import ProfileImageManager from '@/components/profile/ProfileImageManager';
+import ProfilePreview from '@/components/profile/ProfilePreview';
+import { profileService } from '@/services/profileService';
 
 const EditProfilePage: React.FC = () => {
   const [profileData, setProfileData] = useState<any>(null);
