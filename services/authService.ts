@@ -1,3 +1,4 @@
+import { otpStore, generateOTP, cleanupExpiredOTPs } from '../lib/otpStore';
 
 interface LoginResponse {
   token: string;
@@ -5,6 +6,11 @@ interface LoginResponse {
 }
 
 interface RegisterResponse {
+  success: boolean;
+  message?: string;
+}
+
+interface OTPResponse {
   success: boolean;
   message?: string;
 }
@@ -42,7 +48,78 @@ export const authService = {
   },
 
   /**
-   * Simulated registration logic.
+   * Send OTP to email for verification.
+   */
+  async sendOTP(email: string): Promise<OTPResponse> {
+    // Simulate network latency
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+      throw new Error('Valid email is required');
+    }
+
+    // Generate OTP
+    const otp = generateOTP();
+    const expires = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    // Store OTP
+    otpStore[email] = { otp, expires };
+
+    // PRODUCTION NOTE: Integrate with email service like SendGrid, AWS SES, etc.
+    console.log(`OTP for ${email}: ${otp}`); // For development only
+
+    return {
+      success: true,
+      message: 'OTP sent to your email'
+    };
+  },
+
+  /**
+   * Verify OTP and complete registration.
+   */
+  async verifyOTPAndRegister(email: string, otp: string, name: string, password: string): Promise<RegisterResponse> {
+    // Simulate network latency
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Clean up expired OTPs
+    cleanupExpiredOTPs();
+
+    // Verify OTP
+    const storedOTP = otpStore[email];
+
+    if (!storedOTP) {
+      throw new Error('No OTP found for this email');
+    }
+
+    if (Date.now() > storedOTP.expires) {
+      delete otpStore[email];
+      throw new Error('OTP has expired');
+    }
+
+    if (storedOTP.otp !== otp) {
+      throw new Error('Invalid OTP');
+    }
+
+    // OTP verified successfully
+    delete otpStore[email];
+
+    // Check if email already exists
+    if (MOCK_USERS.some(u => u.email === email)) {
+      throw new Error('Email already exists');
+    }
+
+    // In production, this would save to database
+    MOCK_USERS.push({
+      email,
+      password,
+      role: 'user'
+    });
+
+    return { success: true };
+  },
+
+  /**
+   * Simulated registration logic (kept for backward compatibility).
    */
   async register(name: string, email: string, password: string): Promise<RegisterResponse> {
     await new Promise(resolve => setTimeout(resolve, 1000));

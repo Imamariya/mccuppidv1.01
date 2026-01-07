@@ -5,11 +5,12 @@ import ErrorMessage from '../ErrorMessage';
 import { authService } from '../../services/authService';
 
 interface SignupStepAccountProps {
-  onSuccess: () => void;
+  onSuccess: (data: { email: string; password: string; name: string }) => void;
 }
 
 const SignupStepAccount: React.FC<SignupStepAccountProps> = ({ onSuccess }) => {
   const [formData, setFormData] = useState({
+    name: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -33,8 +34,11 @@ const SignupStepAccount: React.FC<SignupStepAccountProps> = ({ onSuccess }) => {
     e.preventDefault();
     setError(null);
 
-    if (!formData.email || !formData.password || !formData.confirmPassword) {
+    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
       setError("Fill in all fields"); return;
+    }
+    if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      setError("Enter a valid email"); return;
     }
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords don't match"); return;
@@ -45,10 +49,14 @@ const SignupStepAccount: React.FC<SignupStepAccountProps> = ({ onSuccess }) => {
 
     setIsLoading(true);
     try {
-      await authService.register("User", formData.email, formData.password);
-      onSuccess();
+      await authService.sendOTP(formData.email);
+      onSuccess({
+        email: formData.email,
+        password: formData.password,
+        name: formData.name
+      });
     } catch (err: any) {
-      setError(err.message || "Registration failed");
+      setError(err.message || "Failed to send verification code");
     } finally {
       setIsLoading(false);
     }
@@ -56,6 +64,16 @@ const SignupStepAccount: React.FC<SignupStepAccountProps> = ({ onSuccess }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 animate-fade-in">
+      <div className="space-y-1">
+        <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Full Name</label>
+        <input 
+          type="text" 
+          value={formData.name}
+          onChange={e => setFormData({...formData, name: e.target.value})}
+          className="w-full bg-zinc-950 border border-zinc-800 text-white p-3 rounded-xl focus:border-emerald-500 outline-none transition-all"
+          placeholder="Enter your full name"
+        />
+      </div>
       <div className="space-y-1">
         <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Email</label>
         <input 

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import SignupProgress from '../../components/signup/SignupProgress';
 import SignupStepAccount from '../../components/signup/SignupStepAccount';
+import SignupStepOTP from '../../components/signup/SignupStepOTP';
 import SignupStepBasic from '../../components/signup/SignupStepBasic';
 import SignupStepRelationship from '../../components/signup/SignupStepRelationship';
 import SignupStepPhotos from '../../components/signup/SignupStepPhotos';
@@ -13,6 +14,7 @@ const SignupPage: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [profileData, setProfileData] = useState<Partial<CompleteProfilePayload>>({});
+  const [accountData, setAccountData] = useState<{ email: string; password: string; name: string } | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsVisible(true), 100);
@@ -20,6 +22,15 @@ const SignupPage: React.FC = () => {
   }, []);
 
   const nextStep = () => setStep(s => s + 1);
+
+  const handleAccountComplete = (data: { email: string; password: string; name: string }) => {
+    setAccountData(data);
+    nextStep();
+  };
+
+  const handleOTPComplete = () => {
+    nextStep();
+  };
 
   const handleStepComplete = (data: Partial<CompleteProfilePayload>) => {
     setProfileData(prev => ({ ...prev, ...data }));
@@ -67,17 +78,27 @@ const SignupPage: React.FC = () => {
 
   const renderStep = () => {
     switch(step) {
-      case 1: return <SignupStepAccount onSuccess={nextStep} />;
-      case 2: return <SignupStepBasic onNext={handleStepComplete} />;
-      case 3: return <SignupStepRelationship onNext={handleStepComplete} />;
-      case 4: return <SignupStepPhotos onNext={urls => handleStepComplete({ profile_images: urls })} />;
-      case 5: return <SignupStepSelfie onComplete={handleFinalSubmit} />;
+      case 1: return <SignupStepAccount onSuccess={handleAccountComplete} />;
+      case 2: return accountData ? (
+        <SignupStepOTP
+          email={accountData.email}
+          name={accountData.name}
+          password={accountData.password}
+          onSuccess={handleOTPComplete}
+          onBack={() => setStep(1)}
+        />
+      ) : null;
+      case 3: return <SignupStepBasic onNext={handleStepComplete} />;
+      case 4: return <SignupStepRelationship onNext={handleStepComplete} />;
+      case 5: return <SignupStepPhotos onNext={urls => handleStepComplete({ profile_images: urls })} />;
+      case 6: return <SignupStepSelfie onComplete={handleFinalSubmit} />;
       default: return null;
     }
   };
 
   const stepTitles = [
     "Create Account",
+    "Verify Email",
     "Basic Details",
     "Relationships",
     "Profile Photos",
@@ -109,7 +130,7 @@ const SignupPage: React.FC = () => {
         
         <div className="space-y-1">
           <h2 className="text-white text-xl font-bold tracking-tight">{stepTitles[step-1]}</h2>
-          <SignupProgress step={step} totalSteps={5} />
+          <SignupProgress step={step} totalSteps={6} />
         </div>
       </header>
 
