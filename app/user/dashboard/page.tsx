@@ -5,9 +5,17 @@ import VerificationBanner from '../../../components/user/VerificationBanner';
 import DiscoverCard from '../../../components/user/DiscoverCard';
 import MatchListItem from '../../../components/user/MatchListItem';
 import ProUpgradeModal from '../../../components/user/ProUpgradeModal';
+import NotificationBell from '../../../components/notifications/NotificationBell';
+import NotificationList from '../../../components/notifications/NotificationList';
+import FilterModal from '../../../components/user/FilterModal';
 import { userService, UserProfile } from '../../../services/userService';
 import { matchService } from '../../../services/matchService';
 import { chatService } from '../../../services/chatService';
+import { locationService } from '../../../services/locationService';
+import { verificationService } from '../../../services/verificationService';
+import { notificationService, Notification } from '../../../services/notificationService';
+import { socketService } from '../../../services/socketService';
+import { filterService, SearchFilters } from '../../../services/filterService';
 
 const UserDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -15,17 +23,37 @@ const UserDashboard: React.FC = () => {
   const [feed, setFeed] = useState<UserProfile[]>([]);
   const [matches, setMatches] = useState<any[]>([]);
   const [chats, setChats] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [filters, setFilters] = useState<SearchFilters>(filterService.getFilters());
   const [isLoading, setIsLoading] = useState(true);
   
-  // Upgrade Modal State
+  // UI States
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState<'likes' | 'matches' | 'messaging' | null>(null);
+
+  const fetchFeedData = async (currentFilters: SearchFilters) => {
+    try {
+      const query = filterService.toQueryParams(currentFilters);
+      const f = await matchService.getFeed(query);
+      setFeed(f);
+    } catch (err) {
+      console.error("Feed Load Error:", err);
+    }
+  };
 
   const fetchData = async () => {
     try {
-      const p = await userService.getProfile();
+      const [p, n] = await Promise.all([
+        userService.getProfile(),
+        notificationService.getNotifications()
+      ]);
       setProfile(p);
-      const f = await matchService.getFeed();
-      setFeed(f);
+      setNotifications(n);
+      await fetchFeedData(filters);
+      
+      // Initialize Socket
+      socketService.connect(p.id);
     } catch (err) {
       console.error("Dashboard Load Error:", err);
     } finally {
@@ -35,6 +63,33 @@ const UserDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+
+    // Setup Socket Listeners
+    socketService.onNotification((newNotif) => {
+      setNotifications(prev => [newNotif, ...prev]);
+    });
+
+    socketService.onVerified(() => {
+      setProfile(prev => prev ? { ...prev, is_verified: true } : null);
+    });
+
+    // Location & Verification Sync
+    const syncLocation = async () => {
+      try {
+        const pos = await locationService.getCurrentPosition();
+        const geo = await locationService.reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+        await locationService.updateLocation({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          ...geo
+        });
+      } catch {}
+    };
+    syncLocation();
+
+    return () => {
+      // Disconnect socket on unmount if needed
+    };
   }, []);
 
   useEffect(() => {
@@ -50,9 +105,7 @@ const UserDashboard: React.FC = () => {
       await matchService.like(id);
       setFeed(feed.filter(p => p.id !== id));
     } catch (err: any) {
-      if (err.message === 'PRO_PLAN_REQUIRED') {
-        setUpgradeReason('likes');
-      }
+      if (err.message === 'PRO_PLAN_REQUIRED') setUpgradeReason('likes');
     }
   };
 
@@ -61,11 +114,23 @@ const UserDashboard: React.FC = () => {
     await matchService.reject(id);
   };
 
-  const onUpgradeSuccess = () => {
-    setUpgradeReason(null);
-    localStorage.setItem('mallucupid_plan', 'pro');
-    fetchData();
+  const handleReadNotification = async (id: string) => {
+    try {
+      await notificationService.markAsRead(id);
+      setNotifications(notifications.map(n => n.id === id ? { ...n, is_read: true } : n));
+    } catch {}
   };
+
+  const handleApplyFilters = async (newFilters: SearchFilters) => {
+    setFilters(newFilters);
+    filterService.saveFilters(newFilters);
+    setIsFilterOpen(false);
+    setIsLoading(true);
+    await fetchFeedData(newFilters);
+    setIsLoading(false);
+  };
+
+  const unreadNotifCount = notifications.filter(n => !n.is_read).length;
 
   const renderTab = () => {
     if (isLoading) return (
@@ -79,6 +144,16 @@ const UserDashboard: React.FC = () => {
       case 0: // Discover
         return (
           <div className="flex-1 flex flex-col px-6 py-4">
+            <div className="flex justify-between items-center mb-6">
+               <h2 className="text-white text-xl font-bold tracking-tight">For You</h2>
+               <button 
+                onClick={() => setIsFilterOpen(true)}
+                className="flex items-center space-x-2 bg-zinc-900 px-4 py-2 rounded-full border border-zinc-800 text-zinc-400 active:scale-95 transition-all"
+               >
+                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+                 <span className="text-[10px] font-black uppercase tracking-widest">Filters</span>
+               </button>
+            </div>
             {feed.length > 0 ? (
               <DiscoverCard 
                 profile={feed[0]} 
@@ -90,21 +165,21 @@ const UserDashboard: React.FC = () => {
               <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
                 <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center text-zinc-700">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <h3 className="text-white text-lg font-bold">No one nearby</h3>
-                <p className="text-zinc-500 text-xs max-w-[200px]">Check back later or expand your distance.</p>
+                <h3 className="text-white text-lg font-bold">No one found</h3>
+                <p className="text-zinc-500 text-xs">Try adjusting your filters.</p>
+                <button onClick={() => setIsFilterOpen(true)} className="text-emerald-500 text-xs font-bold uppercase underline">Reset Filters</button>
               </div>
             )}
           </div>
         );
       case 1: // Matches
         return (
-          <div className="flex-1 overflow-y-auto pt-2">
+          <div className="flex-1 overflow-y-auto">
              <div className="px-6 py-4 border-b border-zinc-900/50">
                <h2 className="text-white text-xl font-bold">New Matches</h2>
-               <p className="text-zinc-500 text-xs mt-1">Start a conversation with your latest connections.</p>
              </div>
              {matches.length > 0 ? (
                matches.map(m => (
@@ -117,13 +192,13 @@ const UserDashboard: React.FC = () => {
                  />
                ))
              ) : (
-               <div className="p-12 text-center text-zinc-600 text-sm italic">Keep swiping to find matches!</div>
+               <div className="p-12 text-center text-zinc-600 italic">No matches yet. Keep discovering!</div>
              )}
           </div>
         );
       case 2: // Inbox
         return (
-          <div className="flex-1 overflow-y-auto pt-2">
+          <div className="flex-1 overflow-y-auto">
             <div className="px-6 py-4 border-b border-zinc-900/50">
                <h2 className="text-white text-xl font-bold">Conversations</h2>
              </div>
@@ -141,7 +216,7 @@ const UserDashboard: React.FC = () => {
                  />
                ))
              ) : (
-               <div className="p-12 text-center text-zinc-600 text-sm italic">No active messages yet.</div>
+               <div className="p-12 text-center text-zinc-600 italic">No active messages.</div>
              )}
           </div>
         );
@@ -160,39 +235,14 @@ const UserDashboard: React.FC = () => {
                <div>
                  <div className="flex items-center justify-center gap-2">
                    <h2 className="text-white text-2xl font-bold">{profile?.name}, {profile?.age}</h2>
-                   {profile?.plan === 'pro' && (
-                     <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-black text-[8px] font-black px-1.5 py-0.5 rounded uppercase">PRO</span>
-                   )}
                  </div>
                  <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest mt-1">{profile?.relationship_type}</p>
                </div>
              </div>
-
              <div className="space-y-4 pt-8">
-               {profile?.plan === 'free' && (
-                 <button 
-                  onClick={() => setUpgradeReason('likes')}
-                  className="w-full p-6 bg-gradient-to-br from-zinc-900 to-zinc-950 border border-yellow-500/20 rounded-3xl text-left flex items-center justify-between group overflow-hidden relative"
-                 >
-                   <div className="relative z-10">
-                     <p className="text-yellow-500 text-[10px] font-black uppercase tracking-[0.2em] mb-1">Upgrade MalluCupid</p>
-                     <h4 className="text-white font-bold">Get Pro Plan for ₹99</h4>
-                     <p className="text-zinc-500 text-xs mt-1">Unlock unlimited messages & likes.</p>
-                   </div>
-                   <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-125 transition-transform duration-700">
-                     <svg className="w-16 h-16 text-yellow-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                   </div>
-                 </button>
-               )}
-               <button className="w-full p-4 bg-zinc-900/50 border border-zinc-800 rounded-2xl text-left flex items-center justify-between">
+               <button onClick={() => window.location.hash = '#/user/profile/edit'} className="w-full p-4 bg-zinc-900/50 border border-zinc-800 rounded-2xl text-left flex justify-between group">
                  <span className="text-white text-sm font-bold uppercase tracking-widest">Edit Profile</span>
-                 <svg className="w-4 h-4 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-               </button>
-               <button 
-                onClick={() => { if(confirm("Ready to sign out?")) window.location.hash = '#/'; }}
-                className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-center"
-               >
-                 <span className="text-red-500 text-sm font-bold uppercase tracking-widest">Logout</span>
+                 <svg className="w-4 h-4 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
                </button>
              </div>
           </div>
@@ -205,8 +255,9 @@ const UserDashboard: React.FC = () => {
     <div className="flex flex-col h-screen bg-zinc-950 overflow-hidden">
       <header className="px-6 pt-12 pb-4 flex justify-between items-center z-10">
         <h1 className="text-white text-2xl font-brand italic">MalluCupid</h1>
-        <div className="flex space-x-2">
-          {profile?.plan === 'pro' && <span className="text-[9px] text-yellow-500 font-black border border-yellow-500/30 px-2 py-1 rounded-lg">PRO ACTIVE</span>}
+        <div className="flex items-center space-x-3">
+          {profile?.plan === 'pro' && <span className="text-[8px] text-yellow-500 font-black border border-yellow-500/30 px-2 py-1.5 rounded-lg tracking-widest">PRO ACTIVE</span>}
+          <NotificationBell unreadCount={unreadNotifCount} onClick={() => setIsNotifOpen(true)} />
         </div>
       </header>
 
@@ -222,7 +273,21 @@ const UserDashboard: React.FC = () => {
         isOpen={upgradeReason !== null} 
         onClose={() => setUpgradeReason(null)} 
         reason={upgradeReason || 'messaging'}
-        onSuccess={onUpgradeSuccess}
+        onSuccess={() => { setUpgradeReason(null); fetchData(); }}
+      />
+
+      <NotificationList 
+        notifications={notifications} 
+        isOpen={isNotifOpen} 
+        onClose={() => setIsNotifOpen(false)}
+        onRead={handleReadNotification}
+      />
+
+      <FilterModal 
+        isOpen={isFilterOpen}
+        filters={filters}
+        onClose={() => setIsFilterOpen(false)}
+        onSave={handleApplyFilters}
       />
     </div>
   );

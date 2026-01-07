@@ -1,48 +1,65 @@
 
 export const paymentService = {
   /**
-   * Initiates the Pro Plan purchase flow.
+   * Loads the Razorpay checkout script dynamically into the document.
    */
-  async startUpgradeFlow(gateway: 'razorpay' | 'stripe' = 'razorpay'): Promise<boolean> {
-    try {
-      // 1. Create order on backend
-      const orderRes = await fetch('/api/payment/create-order', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('mallucupid_token')}`
-        },
-        body: JSON.stringify({ gateway, plan: 'pro' })
-      });
+  loadRazorpayScript(): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (typeof window === 'undefined') return resolve(false);
+      if ((window as any).Razorpay) return resolve(true);
 
-      if (!orderRes.ok) throw new Error('Failed to create payment order');
-      const orderData = await orderRes.json();
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  },
 
-      // 2. Simulate Payment Gateway Interaction
-      // In production, this would open Razorpay Checkout or Stripe Elements
-      console.log(`MOCK GATEWAY: Opening ${gateway} for Order ${orderData.orderId}`);
-      await new Promise(resolve => setTimeout(resolve, 1500));
+  /**
+   * Calls the backend to create a Razorpay order.
+   */
+  async createOrder(): Promise<any> {
+    const res = await fetch('/api/payment/create-order', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('mallucupid_token')}`
+      },
+      body: JSON.stringify({ gateway: 'razorpay', plan: 'pro' })
+    });
 
-      // 3. Verify Payment on Backend
-      const verifyRes = await fetch('/api/payment/verify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('mallucupid_token')}`
-        },
-        body: JSON.stringify({
-          orderId: orderData.orderId,
-          paymentId: `pay_${Math.random().toString(36).substring(7)}`,
-          signature: 'valid_mock_signature'
-        })
-      });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.message || 'Failed to create order');
+    }
 
-      if (!verifyRes.ok) throw new Error('Payment verification failed');
-      
-      return true;
-    } catch (error) {
-      console.error('Payment Flow Error:', error);
+    return res.json();
+  },
+
+  /**
+   * Calls the backend to verify the Razorpay payment signature.
+   */
+  async verifyPayment(paymentData: {
+    order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+  }): Promise<boolean> {
+    const res = await fetch('/api/payment/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('mallucupid_token')}`
+      },
+      body: JSON.stringify(paymentData)
+    });
+
+    if (!res.ok) {
       return false;
     }
+
+    const data = await res.json();
+    return data.success;
   }
 };

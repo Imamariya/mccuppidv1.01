@@ -11,7 +11,9 @@ export const storageService = {
     const response = await fetch('/api/storage/upload', {
       method: 'POST',
       body: formData,
-      // Note: Authorization header should be added here in a real app
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('mallucupid_token')}`
+      }
     });
 
     if (!response.ok) {
@@ -33,6 +35,9 @@ export const storageService = {
     const response = await fetch('/api/storage/upload', {
       method: 'POST',
       body: formData,
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('mallucupid_token')}`
+      }
     });
 
     if (!response.ok) {
@@ -40,5 +45,23 @@ export const storageService = {
     }
 
     return await response.json();
+  },
+
+  /**
+   * Deletes a profile image from storage.
+   */
+  async deleteProfileImage(imageUrl: string): Promise<void> {
+    const response = await fetch('/api/storage/delete-profile-image', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('mallucupid_token')}`
+      },
+      body: JSON.stringify({ imageUrl })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to delete image');
+    }
   }
 };

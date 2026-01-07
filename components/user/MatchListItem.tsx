@@ -1,5 +1,6 @@
 
 import React from 'react';
+import VerifiedBadge from '../common/VerifiedBadge';
 
 interface MatchListItemProps {
   id: string;
@@ -8,10 +9,11 @@ interface MatchListItemProps {
   lastMessage?: string;
   timestamp?: string;
   unreadCount?: number;
+  isVerified?: boolean;
   onClick: () => void;
 }
 
-const MatchListItem: React.FC<MatchListItemProps> = ({ name, imageUrl, lastMessage, timestamp, unreadCount, onClick }) => {
+const MatchListItem: React.FC<MatchListItemProps> = ({ name, imageUrl, lastMessage, timestamp, unreadCount, isVerified, onClick }) => {
   return (
     <button 
       onClick={onClick}
@@ -22,9 +24,10 @@ const MatchListItem: React.FC<MatchListItemProps> = ({ name, imageUrl, lastMessa
         <div className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-500 border-4 border-zinc-950 rounded-full" />
       </div>
       <div className="flex-1 text-left">
-        <div className="flex justify-between items-baseline">
+        <div className="flex items-center space-x-2">
           <h3 className="text-white font-bold text-base">{name}</h3>
-          {timestamp && <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider">{timestamp}</span>}
+          {isVerified && <VerifiedBadge size="sm" />}
+          {timestamp && <span className="text-[10px] text-zinc-600 font-bold ml-auto uppercase tracking-wider">{timestamp}</span>}
         </div>
         <p className="text-zinc-500 text-sm line-clamp-1 mt-0.5 font-medium">
           {lastMessage || "You matched! Say hi 👋"}

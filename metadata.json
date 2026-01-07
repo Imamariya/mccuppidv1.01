@@ -2,6 +2,7 @@
   "name": "MalluCupid Landing",
   "description": "A premium, production-quality landing page for the MalluCupid dating app, optimized for mobile and tablet with desktop blocking functionality.",
   "requestFramePermissions": [
-    "camera"
+    "camera",
+    "geolocation"
   ]
 }

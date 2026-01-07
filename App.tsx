@@ -11,6 +11,7 @@ import UpgradePage from './app/pro/upgrade/page';
 import CheckoutPage from './app/pro/checkout/page';
 import PaymentSuccessPage from './app/pro/success/page';
 import PaymentFailurePage from './app/pro/failure/page';
+import EditProfilePage from './app/user/profile/edit/page';
 
 const App: React.FC = () => {
   const [isDesktop, setIsDesktop] = useState(false);
@@ -57,6 +58,8 @@ const App: React.FC = () => {
       return <SignupPage />;
     case '#/user/dashboard':
       return <UserDashboard />;
+    case '#/user/profile/edit':
+      return <EditProfilePage />;
     case '#/admin/dashboard':
       return <AdminDashboard />;
     case '#/pro/upgrade':
