@@ -7,6 +7,10 @@ import SignupPage from './app/signup/page';
 import UserDashboard from './app/user/dashboard/page';
 import AdminDashboard from './app/admin/dashboard/page';
 import ChatPage from './app/user/chat/[matchId]/page';
+import UpgradePage from './app/pro/upgrade/page';
+import CheckoutPage from './app/pro/checkout/page';
+import PaymentSuccessPage from './app/pro/success/page';
+import PaymentFailurePage from './app/pro/failure/page';
 
 const App: React.FC = () => {
   const [isDesktop, setIsDesktop] = useState(false);
@@ -55,6 +59,14 @@ const App: React.FC = () => {
       return <UserDashboard />;
     case '#/admin/dashboard':
       return <AdminDashboard />;
+    case '#/pro/upgrade':
+      return <UpgradePage />;
+    case '#/pro/checkout':
+      return <CheckoutPage />;
+    case '#/pro/success':
+      return <PaymentSuccessPage />;
+    case '#/pro/failure':
+      return <PaymentFailurePage />;
     case '#/':
     default:
       return <LandingPage />;
