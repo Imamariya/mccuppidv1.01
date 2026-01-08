@@ -1,26 +1,61 @@
 import { Router, Response, Request } from 'express';
 import User from '../models/User';
 import { generateToken } from '../utils/jwt';
+import { sendWelcomeEmail, initEmailService } from '../utils/email';
 import { AuthRequest, authMiddleware } from '../middleware/auth';
 
 const router = Router();
+
+// Initialize email service
+initEmailService();
 
 // Register
 router.post('/register', async (req: Request, res: Response) => {
   try {
     const { email, password, name } = req.body;
 
-    if (await User.findOne({ email })) {
-      return res.status(400).json({ error: 'Email already exists' });
+    // Validate required fields
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: 'Email, password, and name are required' });
     }
 
-    const user = new User({ email, password, name });
+    // Validate email format
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      return res.status(400).json({ error: 'Please provide a valid email address' });
+    }
+
+    // Validate password strength
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    // Check if email already exists
+    if (await User.findOne({ email: email.toLowerCase() })) {
+      return res.status(400).json({ error: 'Email already registered' });
+    }
+
+    // Create new user
+    const user = new User({ 
+      email: email.toLowerCase(), 
+      password, 
+      name 
+    });
     await user.save();
 
+    // Send welcome email
+    await sendWelcomeEmail(user.email, user.name);
+
     const token = generateToken((user._id as any).toString(), 'user');
-    res.status(201).json({ token, userId: user._id });
+    res.status(201).json({ 
+      success: true,
+      message: 'Account created successfully. Welcome email sent.',
+      token, 
+      userId: user._id,
+      role: 'user'
+    });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error('Registration error:', error);
+    res.status(500).json({ error: error.message || 'Registration failed' });
   }
 });
 

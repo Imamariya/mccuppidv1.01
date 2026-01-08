@@ -1,9 +1,13 @@
 import { Router, Request, Response } from 'express';
 import User from '../models/User';
 import { generateToken } from '../utils/jwt';
+import { sendPasswordResetEmail, initEmailService } from '../utils/email';
 import bcryptjs from 'bcryptjs';
 
 const router = Router();
+
+// Initialize email service
+initEmailService();
 
 /**
  * POST /api/auth/forgot-password
@@ -41,12 +45,14 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
 
     await user.save();
 
-    // PRODUCTION: Send email with reset link
-    // const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-    // await sendResetEmail(user.email, resetLink);
+    // Send password reset email
+    const emailSent = await sendPasswordResetEmail(user.email, resetToken);
 
-    console.log(`[PRODUCTION] Send reset email to ${email}`);
-    console.log(`Reset token: ${resetToken}`);
+    if (!emailSent) {
+      console.warn(`Failed to send reset email to ${email}, but token was generated`);
+    } else {
+      console.log(`Password reset email sent to ${email}`);
+    }
 
     res.status(200).json({
       success: true,
