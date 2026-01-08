@@ -10,6 +10,20 @@
       "StackName": "amplify-mccuppidv101-dev-812d0",
       "StackId": "arn:aws:cloudformation:us-west-2:558497224163:stack/amplify-mccuppidv101-dev-812d0/9ec06450-ec21-11f0-96be-02841d2a52cb",
       "AmplifyAppId": "d1pw4k6y6h3uyc"
+    },
+    "categories": {
+      "auth": {
+        "mccuppidv1014de1708e": {}
+      },
+      "function": {
+        "S3Trigger8806f67a": {
+          "deploymentBucketName": "amplify-mccuppidv101-dev-812d0-deployment",
+          "s3Key": "amplify-builds/S3Trigger8806f67a-694a774950456a735059-build.zip"
+        }
+      },
+      "storage": {
+        "mallucupidawsbackend": {}
+      }
     }
   }
 }

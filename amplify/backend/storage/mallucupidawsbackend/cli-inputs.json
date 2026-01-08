@@ -1,0 +1,12 @@
+{
+  "resourceName": "mallucupidawsbackend",
+  "policyUUID": "f0eab6ac",
+  "bucketName": "mallucupidgalleryv1",
+  "storageAccess": "auth",
+  "guestAccess": [],
+  "authAccess": [
+    "CREATE_AND_UPDATE"
+  ],
+  "triggerFunction": "S3Trigger8806f67a",
+  "groupAccess": {}
+}
