@@ -4,10 +4,12 @@ import ErrorMessage from './ErrorMessage';
 import { authService } from '../services/authService';
 
 interface ResetPasswordFormProps {
-  token?: string;
+  email?: string;
 }
 
-const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({ token = '' }) => {
+const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({ email: initialEmail = '' }) => {
+  const [email, setEmail] = useState(initialEmail);
+  const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -15,18 +17,18 @@ const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({ token = '' }) => 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [resetToken, setResetToken] = useState(token);
+  const [stage, setStage] = useState<'email' | 'code'>('email');
 
   useEffect(() => {
-    // Get token from URL query params if not provided as prop
-    if (!resetToken) {
+    // Get email from URL query params if not provided as prop
+    if (!email) {
       const params = new URLSearchParams(window.location.search);
-      const urlToken = params.get('token');
-      if (urlToken) {
-        setResetToken(urlToken);
+      const urlEmail = params.get('email');
+      if (urlEmail) {
+        setEmail(urlEmail);
       }
     }
-  }, [resetToken]);
+  }, [email]);
 
   const validatePassword = (pwd: string): string | null => {
     if (pwd.length < 8) return "Password must be at least 8 characters";
@@ -37,12 +39,48 @@ const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({ token = '' }) => 
     return null;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmitEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!email) {
+      setError("Please enter your email address");
+      return;
+    }
+
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      setError("Please enter a valid email address");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await authService.requestPasswordReset(email);
+      
+      if (response.success) {
+        setStage('code');
+        setError(null);
+      } else {
+        setError(response.message || "Failed to send reset code");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to send reset code");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(false);
 
     // Validation
+    if (!code) {
+      setError("Please enter the verification code");
+      return;
+    }
+
     if (!password || !confirmPassword) {
       setError("Please fill in all fields");
       return;
@@ -59,19 +97,15 @@ const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({ token = '' }) => 
       return;
     }
 
-    if (!resetToken) {
-      setError("Invalid reset link. Please request a new one.");
-      return;
-    }
-
     setIsLoading(true);
     try {
-      const response = await authService.resetPassword(resetToken, password);
+      const response = await authService.resetPassword(email, code, password);
       
       if (response.success) {
         setSuccess(true);
         setPassword('');
         setConfirmPassword('');
+        setCode('');
         // Redirect to login after 3 seconds
         setTimeout(() => {
           window.location.hash = '#/login';
@@ -80,7 +114,7 @@ const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({ token = '' }) => 
         setError(response.message || "Failed to reset password");
       }
     } catch (err: any) {
-      setError(err.message || "Failed to reset password. The link may have expired.");
+      setError(err.message || "Failed to reset password. The code may have expired.");
     } finally {
       setIsLoading(false);
     }
@@ -92,9 +126,11 @@ const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({ token = '' }) => 
         <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-8 shadow-2xl">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-white mb-2">Create New Password</h1>
+            <h1 className="text-3xl font-bold text-white mb-2">Reset Password</h1>
             <p className="text-zinc-400 text-sm">
-              Enter a strong password to secure your account
+              {stage === 'email'
+                ? 'Enter your email to receive a reset code'
+                : 'Enter the code and your new password'}
             </p>
           </div>
 
@@ -110,17 +146,132 @@ const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({ token = '' }) => 
           {/* Error Message */}
           <ErrorMessage message={error} />
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* New Password */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest pl-1">
-                New Password
-              </label>
-              <div className="relative">
+          {/* Email Stage */}
+          {stage === 'email' && (
+            <form onSubmit={handleSubmitEmail} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest pl-1">
+                  Email Address
+                </label>
                 <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-pink-500 transition"
+                  disabled={isLoading}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 bg-gradient-to-r from-pink-600 to-red-600 hover:from-pink-700 hover:to-red-700 disabled:from-zinc-700 disabled:to-zinc-700 text-white font-bold rounded-lg transition duration-300"
+              >
+                {isLoading ? 'Sending...' : 'Send Reset Code'}
+              </button>
+
+              <div className="text-center">
+                <a
+                  href="#/login"
+                  className="text-zinc-400 hover:text-pink-400 text-sm transition"
+                >
+                  Back to Login
+                </a>
+              </div>
+            </form>
+          )}
+
+          {/* Code & Password Stage */}
+          {stage === 'code' && (
+            <form onSubmit={handleResetPassword} className="space-y-6">
+              {/* Verification Code */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest pl-1">
+                  Verification Code
+                </label>
+                <input
+                  type="text"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="123456"
+                  className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-pink-500 transition"
+                  disabled={isLoading}
+                />
+                <p className="text-xs text-zinc-400">Check your email for the code</p>
+              </div>
+
+              {/* New Password */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest pl-1">
+                  New Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-pink-500 transition pr-12"
+                    disabled={isLoading}
+                  />
+                  <PasswordToggle
+                    showPassword={showPassword}
+                    onToggle={() => setShowPassword(!showPassword)}
+                  />
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest pl-1">
+                  Confirm Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-pink-500 transition pr-12"
+                    disabled={isLoading}
+                  />
+                  <PasswordToggle
+                    showPassword={showConfirmPassword}
+                    onToggle={() => setShowConfirmPassword(!showConfirmPassword)}
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 bg-gradient-to-r from-pink-600 to-red-600 hover:from-pink-700 hover:to-red-700 disabled:from-zinc-700 disabled:to-zinc-700 text-white font-bold rounded-lg transition duration-300"
+              >
+                {isLoading ? 'Resetting...' : 'Reset Password'}
+              </button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStage('email');
+                    setError(null);
+                  }}
+                  className="text-zinc-400 hover:text-pink-400 text-sm transition"
+                >
+                  Use different email
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ResetPasswordForm;
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
                   placeholder="Enter new password"

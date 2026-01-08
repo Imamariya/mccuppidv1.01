@@ -1,252 +1,313 @@
+import { Auth } from 'aws-amplify';
 import { otpStore, generateOTP, cleanupExpiredOTPs } from '../lib/otpStore';
 
 interface LoginResponse {
-  token: string;
-  role: 'user' | 'admin';
+  userSub: string;
+  email: string;
+  name?: string;
 }
 
 interface RegisterResponse {
   success: boolean;
   message?: string;
+  userSub?: string;
 }
 
-interface OTPResponse {
+interface ResetPasswordResponse {
   success: boolean;
   message?: string;
 }
 
-// Get API base URL from environment or use default
-const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.VITE_API_URL || 'http://localhost:5000';
-
-// Fallback to Next.js API routes if backend not available
-const NEXT_API_BASE = '';
-
-// Test credentials for mock mode (when backend not available)
-const MOCK_USERS = [
-  { email: 'user@user.com', password: 'User@123', role: 'user' as const },
-  { email: 'admin@admin.com', password: 'Admin@123', role: 'admin' as const },
-  { email: 'admin@mallucupid.com', password: 'admin123', role: 'admin' as const },
-  { email: 'user@example.com', password: 'user123', role: 'user' as const }
-];
-
 /**
- * Check if backend server is available
+ * AWS Cognito Authentication Service
+ * Handles user signup, login, password reset via AWS Cognito
  */
-async function isBackendAvailable(): Promise<boolean> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/health`, {
-      method: 'GET'
-    });
-    return response.ok;
-  } catch (error) {
-    return false;
-  }
-}
-
-let backendAvailable: boolean | null = null;
-
 export const authService = {
   /**
-   * Login with email and password
-   * Tries Express backend first, falls back to Next.js API, then mock
+   * Sign up new user with AWS Cognito
    */
-  async login(email: string, password: string): Promise<LoginResponse> {
-    // Check backend availability on first call
-    if (backendAvailable === null) {
-      backendAvailable = await isBackendAvailable();
-      console.log(`[Auth] Express backend available: ${backendAvailable}`);
-    }
-
+  async register(email: string, password: string, name: string): Promise<RegisterResponse> {
     try {
-      // Try Express backend first
-      if (backendAvailable) {
-        const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({ email, password })
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          localStorage.setItem('mallucupid_token', data.token);
-          localStorage.setItem('mallucupid_role', data.role || 'user');
-          return data;
-        } else if (response.status === 401) {
-          throw new Error('Invalid email or password');
-        } else {
-          throw new Error('Backend login failed');
+      console.log('[Cognito] Registering user:', email);
+      
+      const response = await Auth.signUp({
+        username: email,
+        password: password,
+        attributes: {
+          email: email,
+          name: name,
+          'email_verified': false
         }
-      }
-
-      // Fallback to Next.js API route
-      const nextResponse = await fetch(`${NEXT_API_BASE}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
       });
 
-      if (nextResponse.ok) {
-        const data = await nextResponse.json();
-        localStorage.setItem('mallucupid_token', data.token);
-        localStorage.setItem('mallucupid_role', data.role || 'user');
-        return data;
-      }
-
-      // Fallback to mock
-      throw new Error('');
-    } catch (error) {
-      // Use mock data
-      console.log('[Auth] Using mock authentication (backend not connected)');
-      await new Promise(resolve => setTimeout(resolve, 800));
-
-      const user = MOCK_USERS.find(
-        u => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-      );
-
-      if (!user) {
-        throw new Error('Invalid email or password');
-      }
-
-      const response: LoginResponse = {
-        token: `mock_jwt_${user.role}_${Date.now()}`,
-        role: user.role
-      };
-
-      localStorage.setItem('mallucupid_token', response.token);
-      localStorage.setItem('mallucupid_role', response.role);
-
-      return response;
-    }
-  },
-
-  /**
-   * Send OTP to email for verification
-   */
-  async sendOTP(email: string): Promise<OTPResponse> {
-    if (backendAvailable === null) {
-      backendAvailable = await isBackendAvailable();
-    }
-
-    try {
-      if (backendAvailable) {
-        const response = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email })
-        });
-
-        if (response.ok) {
-          return await response.json();
-        }
-        throw new Error('Backend OTP send failed');
-      }
-
-      // Fallback to Next.js
-      const nextResponse = await fetch(`${NEXT_API_BASE}/api/auth/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      });
-
-      if (nextResponse.ok) {
-        return await nextResponse.json();
-      }
-      throw new Error('');
-    } catch (error) {
-      // Fallback to mock
-      console.log('[Auth] Using mock OTP');
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      if (!email || !/\S+@\S+\.\S+/.test(email)) {
-        throw new Error('Valid email is required');
-      }
-
-      const otp = generateOTP();
-      const expires = Date.now() + 10 * 60 * 1000;
-      otpStore[email] = { otp, expires };
-
-      console.log(`[MOCK] OTP for ${email}: ${otp}`);
+      console.log('[Cognito] Registration successful:', response.userSub);
 
       return {
         success: true,
-        message: 'OTP sent to your email'
+        message: 'Account created successfully. Please check your email for verification.',
+        userSub: response.userSub
       };
+    } catch (error: any) {
+      console.error('[Cognito] Registration error:', error);
+      
+      if (error.code === 'UsernameExistsException') {
+        throw new Error('Email already registered');
+      } else if (error.code === 'InvalidPasswordException') {
+        throw new Error('Password does not meet requirements');
+      } else if (error.message) {
+        throw new Error(error.message);
+      } else {
+        throw new Error('Registration failed');
+      }
     }
   },
 
   /**
-   * Verify OTP and register user
+   * Confirm user email with verification code
    */
-  async verifyOTPAndRegister(
-    email: string,
-    otp: string,
-    name: string,
-    password: string
-  ): Promise<RegisterResponse> {
-    if (backendAvailable === null) {
-      backendAvailable = await isBackendAvailable();
-    }
-
+  async confirmSignUp(email: string, code: string): Promise<{ success: boolean }> {
     try {
-      if (backendAvailable) {
-        const response = await fetch(`${API_BASE_URL}/api/auth/verify-otp`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, otp, name, password })
-        });
+      console.log('[Cognito] Confirming signup for:', email);
+      
+      await Auth.confirmSignUp(email, code);
 
-        if (response.ok) {
-          return await response.json();
-        }
-        throw new Error('Backend OTP verification failed');
-      }
-
-      // Fallback to Next.js
-      const nextResponse = await fetch(`${NEXT_API_BASE}/api/auth/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp, name, password })
-      });
-
-      if (nextResponse.ok) {
-        return await nextResponse.json();
-      }
-      throw new Error('');
-    } catch (error) {
-      // Fallback to mock
-      console.log('[Auth] Using mock OTP verification');
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      cleanupExpiredOTPs();
-
-      const storedOTP = otpStore[email];
-      if (!storedOTP) {
-        throw new Error('No OTP found for this email');
-      }
-
-      if (Date.now() > storedOTP.expires) {
-        delete otpStore[email];
-        throw new Error('OTP has expired');
-      }
-
-      if (storedOTP.otp !== otp) {
-        throw new Error('Invalid OTP');
-      }
-
-      delete otpStore[email];
-
-      if (MOCK_USERS.some(u => u.email === email)) {
-        throw new Error('Email already exists');
-      }
-
-      MOCK_USERS.push({ email, password, role: 'user' });
+      console.log('[Cognito] Email verified successfully');
 
       return { success: true };
+    } catch (error: any) {
+      console.error('[Cognito] Confirmation error:', error);
+      throw new Error(error.message || 'Email verification failed');
     }
   },
+
+  /**
+   * Login user with Cognito
+   */
+  async login(email: string, password: string): Promise<LoginResponse> {
+    try {
+      console.log('[Cognito] Logging in user:', email);
+      
+      const user = await Auth.signIn(email, password);
+
+      console.log('[Cognito] Login successful:', user.username);
+
+      // Get user attributes
+      const userAttrs = await Auth.userAttributes(user);
+      const emailAttr = userAttrs.find(attr => attr.Name === 'email')?.Value || email;
+      const nameAttr = userAttrs.find(attr => attr.Name === 'name')?.Value;
+
+      return {
+        userSub: user.attributes.sub,
+        email: emailAttr,
+        name: nameAttr
+      };
+    } catch (error: any) {
+      console.error('[Cognito] Login error:', error);
+      
+      if (error.code === 'UserNotConfirmedException') {
+        throw new Error('Please verify your email first');
+      } else if (error.code === 'NotAuthorizedException') {
+        throw new Error('Invalid email or password');
+      } else if (error.code === 'UserNotFoundException') {
+        throw new Error('User not found');
+      } else if (error.message) {
+        throw new Error(error.message);
+      } else {
+        throw new Error('Login failed');
+      }
+    }
+  },
+
+  /**
+   * Request password reset
+   */
+  async requestPasswordReset(email: string): Promise<ResetPasswordResponse> {
+    try {
+      console.log('[Cognito] Requesting password reset for:', email);
+      
+      await Auth.forgotPassword(email);
+
+      console.log('[Cognito] Password reset code sent to email');
+
+      return {
+        success: true,
+        message: 'Password reset code sent to your email'
+      };
+    } catch (error: any) {
+      console.error('[Cognito] Forgot password error:', error);
+      
+      if (error.code === 'UserNotFoundException') {
+        // Don't reveal if user exists (security best practice)
+        return {
+          success: true,
+          message: 'If this email exists, you will receive a password reset link'
+        };
+      }
+      
+      throw new Error(error.message || 'Password reset request failed');
+    }
+  },
+
+  /**
+   * Reset password with verification code
+   */
+  async resetPassword(
+    email: string,
+    code: string,
+    newPassword: string
+  ): Promise<ResetPasswordResponse> {
+    try {
+      console.log('[Cognito] Resetting password for:', email);
+      
+      await Auth.forgotPasswordSubmit(email, code, newPassword);
+
+      console.log('[Cognito] Password reset successful');
+
+      return {
+        success: true,
+        message: 'Password changed successfully. Please login with your new password.'
+      };
+    } catch (error: any) {
+      console.error('[Cognito] Reset password error:', error);
+      
+      if (error.code === 'InvalidPasswordException') {
+        throw new Error('Password does not meet requirements');
+      } else if (error.code === 'ExpiredCodeException') {
+        throw new Error('Reset code has expired. Please request a new one.');
+      } else if (error.code === 'InvalidVerificationCodeException') {
+        throw new Error('Invalid verification code');
+      } else if (error.message) {
+        throw new Error(error.message);
+      } else {
+        throw new Error('Password reset failed');
+      }
+    }
+  },
+
+  /**
+   * Change password for authenticated user
+   */
+  async changePassword(oldPassword: string, newPassword: string): Promise<{ success: boolean }> {
+    try {
+      console.log('[Cognito] Changing password');
+      
+      const user = await Auth.currentAuthenticatedUser();
+      await Auth.changePassword(user, oldPassword, newPassword);
+
+      console.log('[Cognito] Password changed successfully');
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Cognito] Change password error:', error);
+      
+      if (error.code === 'NotAuthorizedException') {
+        throw new Error('Current password is incorrect');
+      } else if (error.code === 'InvalidPasswordException') {
+        throw new Error('New password does not meet requirements');
+      } else if (error.message) {
+        throw new Error(error.message);
+      } else {
+        throw new Error('Password change failed');
+      }
+    }
+  },
+
+  /**
+   * Get current authenticated user
+   */
+  async getCurrentUser(): Promise<any> {
+    try {
+      const user = await Auth.currentAuthenticatedUser();
+      const userAttrs = await Auth.userAttributes(user);
+      
+      return {
+        username: user.username,
+        userSub: user.attributes.sub,
+        attributes: userAttrs.reduce((acc: any, attr: any) => {
+          acc[attr.Name] = attr.Value;
+          return acc;
+        }, {})
+      };
+    } catch (error: any) {
+      console.error('[Cognito] Get current user error:', error);
+      return null;
+    }
+  },
+
+  /**
+   * Logout user
+   */
+  async logout(): Promise<{ success: boolean }> {
+    try {
+      console.log('[Cognito] Logging out user');
+      
+      await Auth.signOut();
+
+      console.log('[Cognito] Logout successful');
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Cognito] Logout error:', error);
+      throw new Error(error.message || 'Logout failed');
+    }
+  },
+
+  /**
+   * Get ID token for API requests
+   */
+  async getIdToken(): Promise<string> {
+    try {
+      const user = await Auth.currentAuthenticatedUser();
+      return user.signInUserSession.idToken.jwtToken;
+    } catch (error) {
+      console.error('[Cognito] Get ID token error:', error);
+      return '';
+    }
+  },
+
+  /**
+   * Get access token for API requests
+   */
+  async getAccessToken(): Promise<string> {
+    try {
+      const user = await Auth.currentAuthenticatedUser();
+      return user.signInUserSession.accessToken.jwtToken;
+    } catch (error) {
+      console.error('[Cognito] Get access token error:', error);
+      return '';
+    }
+  },
+
+  /**
+   * Check if user is authenticated
+   */
+  async isAuthenticated(): Promise<boolean> {
+    try {
+      await Auth.currentAuthenticatedUser();
+      return true;
+    } catch (error) {
+      return false;
+    }
+  },
+
+  // Legacy functions for compatibility
+  async requestPasswordReset(email: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      const result = await this.requestPasswordReset(email);
+      return result;
+    } catch (error: any) {
+      return {
+        success: true,
+        message: 'If this email exists, you will receive a password reset code'
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  }
+};
 
   /**
    * Register new user
