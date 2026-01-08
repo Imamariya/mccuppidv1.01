@@ -4,14 +4,7 @@ frontend:
   phases:
     preBuild:
       commands:
-        - npm install --legacy-peer-deps
-        - npm ci --prefer-offline
-    build:
-      commands:
-        - npm run build
-  artifacts:
-    baseDirectory: dist
-    files:
+        - npm install
       - '**/*'
   cache:
     paths:
