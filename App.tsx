@@ -1,5 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Amplify } from 'aws-amplify';
+import awsconfig from './src/aws-exports';
 import DesktopBlocker from './components/DesktopBlocker';
 import LandingPage from './app/page';
 import LoginPage from './app/login/page';
@@ -14,6 +16,9 @@ import CheckoutPage from './app/pro/checkout/page';
 import PaymentSuccessPage from './app/pro/success/page';
 import PaymentFailurePage from './app/pro/failure/page';
 import EditProfilePage from './app/user/profile/edit/page';
+
+// Configure Amplify with AWS settings
+Amplify.configure(awsconfig);
 
 const App: React.FC = () => {
   const [isDesktop, setIsDesktop] = useState(false);
