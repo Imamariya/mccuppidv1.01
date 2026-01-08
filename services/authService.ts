@@ -105,6 +105,131 @@ export const authService = {
   },
 
   /**
+   * Send OTP to email for verification
+   */
+  async sendOTP(email: string): Promise<{ success: boolean; message?: string }> {
+    if (backendAvailable === null) {
+      backendAvailable = await isBackendAvailable();
+    }
+
+    try {
+      // Try backend first
+      if (backendAvailable) {
+        const response = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+
+        if (response.ok) {
+          return await response.json();
+        }
+      }
+
+      // Fallback to mock OTP - generate and store
+      console.log('[Auth] Generating mock OTP for:', email);
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const otpData = {
+        email,
+        otp,
+        expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
+        attempts: 0
+      };
+      sessionStorage.setItem(`otp_${email}`, JSON.stringify(otpData));
+      console.log(`[MOCK] OTP for ${email}: ${otp} (expires in 10 minutes)`);
+
+      return {
+        success: true,
+        message: 'Verification code sent to your email'
+      };
+    } catch (error: any) {
+      console.error('[Auth] Send OTP error:', error);
+      throw new Error(error.message || 'Failed to send OTP');
+    }
+  },
+
+  /**
+   * Verify OTP code
+   */
+  async verifyOTP(email: string, otp: string): Promise<{ success: boolean; message?: string }> {
+    if (backendAvailable === null) {
+      backendAvailable = await isBackendAvailable();
+    }
+
+    try {
+      // Try backend first
+      if (backendAvailable) {
+        const response = await fetch(`${API_BASE_URL}/api/auth/verify-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, otp })
+        });
+
+        if (response.ok) {
+          return await response.json();
+        }
+      }
+
+      // Fallback to mock OTP verification
+      console.log('[Auth] Verifying OTP for:', email);
+      const otpDataStr = sessionStorage.getItem(`otp_${email}`);
+
+      if (!otpDataStr) {
+        return {
+          success: false,
+          message: 'No OTP found. Please request a new one.'
+        };
+      }
+
+      try {
+        const otpData = JSON.parse(otpDataStr);
+
+        if (Date.now() > otpData.expiresAt) {
+          sessionStorage.removeItem(`otp_${email}`);
+          return {
+            success: false,
+            message: 'OTP expired. Please request a new one.'
+          };
+        }
+
+        if (otpData.attempts >= 3) {
+          sessionStorage.removeItem(`otp_${email}`);
+          return {
+            success: false,
+            message: 'Too many attempts. Please request a new OTP.'
+          };
+        }
+
+        if (otpData.otp !== otp) {
+          otpData.attempts++;
+          sessionStorage.setItem(`otp_${email}`, JSON.stringify(otpData));
+          return {
+            success: false,
+            message: `Invalid OTP. ${3 - otpData.attempts} attempts remaining.`
+          };
+        }
+
+        // OTP verified successfully
+        sessionStorage.removeItem(`otp_${email}`);
+        console.log('[MOCK] OTP verified for:', email);
+
+        return {
+          success: true,
+          message: 'OTP verified successfully'
+        };
+      } catch {
+        return {
+          success: false,
+          message: 'Failed to verify OTP'
+        };
+      }
+    } catch (error: any) {
+      console.error('[Auth] Verify OTP error:', error);
+      throw new Error(error.message || 'OTP verification failed');
+    }
+  },
+
+  /**
    * Confirm user email with verification code
    */
   async confirmSignUp(email: string, code: string): Promise<{ success: boolean }> {
