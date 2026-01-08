@@ -1,5 +1,4 @@
-import { Auth } from 'aws-amplify';
-import { otpStore, generateOTP, cleanupExpiredOTPs } from '../lib/otpStore';
+import { signUp, signIn, confirmSignUp, resetPassword, confirmResetPassword, signOut, getCurrentUser } from 'aws-amplify/auth';
 
 interface LoginResponse {
   userSub: string;
@@ -18,297 +17,34 @@ interface ResetPasswordResponse {
   message?: string;
 }
 
-/**
- * AWS Cognito Authentication Service
- * Handles user signup, login, password reset via AWS Cognito
- */
-export const authService = {
-  /**
-   * Sign up new user with AWS Cognito
-   */
-  async register(email: string, password: string, name: string): Promise<RegisterResponse> {
-    try {
-      console.log('[Cognito] Registering user:', email);
-      
-      const response = await Auth.signUp({
-        username: email,
-        password: password,
-        attributes: {
-          email: email,
-          name: name,
-          'email_verified': false
-        }
-      });
+interface OTPResponse {
+  success: boolean;
+  message?: string;
+}
 
-      console.log('[Cognito] Registration successful:', response.userSub);
+// Mock user data for fallback
+const MOCK_USERS = [
+  { email: 'test@example.com', password: 'Test@123456', name: 'Test User' }
+];
 
-      return {
-        success: true,
-        message: 'Account created successfully. Please check your email for verification.',
-        userSub: response.userSub
-      };
-    } catch (error: any) {
-      console.error('[Cognito] Registration error:', error);
-      
-      if (error.code === 'UsernameExistsException') {
-        throw new Error('Email already registered');
-      } else if (error.code === 'InvalidPasswordException') {
-        throw new Error('Password does not meet requirements');
-      } else if (error.message) {
-        throw new Error(error.message);
-      } else {
-        throw new Error('Registration failed');
-      }
-    }
-  },
+let backendAvailable: boolean | null = null;
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const NEXT_API_BASE = process.env.REACT_APP_NEXT_URL || 'http://localhost:3000';
 
-  /**
-   * Confirm user email with verification code
-   */
-  async confirmSignUp(email: string, code: string): Promise<{ success: boolean }> {
-    try {
-      console.log('[Cognito] Confirming signup for:', email);
-      
-      await Auth.confirmSignUp(email, code);
-
-      console.log('[Cognito] Email verified successfully');
-
-      return { success: true };
-    } catch (error: any) {
-      console.error('[Cognito] Confirmation error:', error);
-      throw new Error(error.message || 'Email verification failed');
-    }
-  },
-
-  /**
-   * Login user with Cognito
-   */
-  async login(email: string, password: string): Promise<LoginResponse> {
-    try {
-      console.log('[Cognito] Logging in user:', email);
-      
-      const user = await Auth.signIn(email, password);
-
-      console.log('[Cognito] Login successful:', user.username);
-
-      // Get user attributes
-      const userAttrs = await Auth.userAttributes(user);
-      const emailAttr = userAttrs.find(attr => attr.Name === 'email')?.Value || email;
-      const nameAttr = userAttrs.find(attr => attr.Name === 'name')?.Value;
-
-      return {
-        userSub: user.attributes.sub,
-        email: emailAttr,
-        name: nameAttr
-      };
-    } catch (error: any) {
-      console.error('[Cognito] Login error:', error);
-      
-      if (error.code === 'UserNotConfirmedException') {
-        throw new Error('Please verify your email first');
-      } else if (error.code === 'NotAuthorizedException') {
-        throw new Error('Invalid email or password');
-      } else if (error.code === 'UserNotFoundException') {
-        throw new Error('User not found');
-      } else if (error.message) {
-        throw new Error(error.message);
-      } else {
-        throw new Error('Login failed');
-      }
-    }
-  },
-
-  /**
-   * Request password reset
-   */
-  async requestPasswordReset(email: string): Promise<ResetPasswordResponse> {
-    try {
-      console.log('[Cognito] Requesting password reset for:', email);
-      
-      await Auth.forgotPassword(email);
-
-      console.log('[Cognito] Password reset code sent to email');
-
-      return {
-        success: true,
-        message: 'Password reset code sent to your email'
-      };
-    } catch (error: any) {
-      console.error('[Cognito] Forgot password error:', error);
-      
-      if (error.code === 'UserNotFoundException') {
-        // Don't reveal if user exists (security best practice)
-        return {
-          success: true,
-          message: 'If this email exists, you will receive a password reset link'
-        };
-      }
-      
-      throw new Error(error.message || 'Password reset request failed');
-    }
-  },
-
-  /**
-   * Reset password with verification code
-   */
-  async resetPassword(
-    email: string,
-    code: string,
-    newPassword: string
-  ): Promise<ResetPasswordResponse> {
-    try {
-      console.log('[Cognito] Resetting password for:', email);
-      
-      await Auth.forgotPasswordSubmit(email, code, newPassword);
-
-      console.log('[Cognito] Password reset successful');
-
-      return {
-        success: true,
-        message: 'Password changed successfully. Please login with your new password.'
-      };
-    } catch (error: any) {
-      console.error('[Cognito] Reset password error:', error);
-      
-      if (error.code === 'InvalidPasswordException') {
-        throw new Error('Password does not meet requirements');
-      } else if (error.code === 'ExpiredCodeException') {
-        throw new Error('Reset code has expired. Please request a new one.');
-      } else if (error.code === 'InvalidVerificationCodeException') {
-        throw new Error('Invalid verification code');
-      } else if (error.message) {
-        throw new Error(error.message);
-      } else {
-        throw new Error('Password reset failed');
-      }
-    }
-  },
-
-  /**
-   * Change password for authenticated user
-   */
-  async changePassword(oldPassword: string, newPassword: string): Promise<{ success: boolean }> {
-    try {
-      console.log('[Cognito] Changing password');
-      
-      const user = await Auth.currentAuthenticatedUser();
-      await Auth.changePassword(user, oldPassword, newPassword);
-
-      console.log('[Cognito] Password changed successfully');
-
-      return { success: true };
-    } catch (error: any) {
-      console.error('[Cognito] Change password error:', error);
-      
-      if (error.code === 'NotAuthorizedException') {
-        throw new Error('Current password is incorrect');
-      } else if (error.code === 'InvalidPasswordException') {
-        throw new Error('New password does not meet requirements');
-      } else if (error.message) {
-        throw new Error(error.message);
-      } else {
-        throw new Error('Password change failed');
-      }
-    }
-  },
-
-  /**
-   * Get current authenticated user
-   */
-  async getCurrentUser(): Promise<any> {
-    try {
-      const user = await Auth.currentAuthenticatedUser();
-      const userAttrs = await Auth.userAttributes(user);
-      
-      return {
-        username: user.username,
-        userSub: user.attributes.sub,
-        attributes: userAttrs.reduce((acc: any, attr: any) => {
-          acc[attr.Name] = attr.Value;
-          return acc;
-        }, {})
-      };
-    } catch (error: any) {
-      console.error('[Cognito] Get current user error:', error);
-      return null;
-    }
-  },
-
-  /**
-   * Logout user
-   */
-  async logout(): Promise<{ success: boolean }> {
-    try {
-      console.log('[Cognito] Logging out user');
-      
-      await Auth.signOut();
-
-      console.log('[Cognito] Logout successful');
-
-      return { success: true };
-    } catch (error: any) {
-      console.error('[Cognito] Logout error:', error);
-      throw new Error(error.message || 'Logout failed');
-    }
-  },
-
-  /**
-   * Get ID token for API requests
-   */
-  async getIdToken(): Promise<string> {
-    try {
-      const user = await Auth.currentAuthenticatedUser();
-      return user.signInUserSession.idToken.jwtToken;
-    } catch (error) {
-      console.error('[Cognito] Get ID token error:', error);
-      return '';
-    }
-  },
-
-  /**
-   * Get access token for API requests
-   */
-  async getAccessToken(): Promise<string> {
-    try {
-      const user = await Auth.currentAuthenticatedUser();
-      return user.signInUserSession.accessToken.jwtToken;
-    } catch (error) {
-      console.error('[Cognito] Get access token error:', error);
-      return '';
-    }
-  },
-
-  /**
-   * Check if user is authenticated
-   */
-  async isAuthenticated(): Promise<boolean> {
-    try {
-      await Auth.currentAuthenticatedUser();
-      return true;
-    } catch (error) {
-      return false;
-    }
-  },
-
-  // Legacy functions for compatibility
-  async requestPasswordReset(email: string): Promise<{ success: boolean; message?: string }> {
-    try {
-      const result = await this.requestPasswordReset(email);
-      return result;
-    } catch (error: any) {
-      return {
-        success: true,
-        message: 'If this email exists, you will receive a password reset code'
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        message: error.message
-      };
-    }
+const isBackendAvailable = async (): Promise<boolean> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/health`, { method: 'GET' });
+    return response.ok;
+  } catch {
+    return false;
   }
 };
 
+/**
+ * Authentication Service
+ * Uses backend API when available, falls back to Cognito or mock auth
+ */
+export const authService = {
   /**
    * Register new user
    */
@@ -318,6 +54,7 @@ export const authService = {
     }
 
     try {
+      // Try backend first
       if (backendAvailable) {
         const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
           method: 'POST',
@@ -326,45 +63,125 @@ export const authService = {
         });
 
         if (response.ok) {
-          return await response.json();
+          const data = await response.json();
+          localStorage.setItem('mallucupid_token', data.token || '');
+          localStorage.setItem('mallucupid_user', JSON.stringify(data.user || {}));
+          return { success: true, message: 'Registration successful', userSub: data.user?.id };
         }
-        throw new Error('Backend registration failed');
       }
 
-      const nextResponse = await fetch(`${NEXT_API_BASE}/api/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password })
+      // Fallback to Cognito
+      console.log('[Cognito] Registering user:', email);
+      const response = await signUp({
+        username: email,
+        password: password,
+        options: {
+          userAttributes: {
+            email: email,
+            name: name
+          }
+        }
       });
 
-      if (nextResponse.ok) {
-        return await nextResponse.json();
-      }
-      throw new Error('');
-    } catch (error) {
-      console.log('[Auth] Using mock registration');
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      return {
+        success: true,
+        message: 'Account created. Please check your email for verification code.',
+        userSub: response.userSub
+      };
+    } catch (error: any) {
+      console.error('[Auth] Registration error:', error);
 
+      // Fallback to mock registration
       if (MOCK_USERS.some(u => u.email === email)) {
-        throw new Error('Email already exists');
+        throw new Error('Email already registered');
       }
 
-      return { success: true };
+      MOCK_USERS.push({ email, password, name });
+      localStorage.setItem('mallucupid_token', `mock_token_${Date.now()}`);
+      localStorage.setItem('mallucupid_user', JSON.stringify({ id: email, email, name }));
+
+      return { success: true, message: 'Registration successful' };
     }
   },
 
-  logout() {
-    localStorage.removeItem('mallucupid_token');
-    localStorage.removeItem('mallucupid_role');
-    window.location.hash = '#/login';
+  /**
+   * Confirm user email with verification code
+   */
+  async confirmSignUp(email: string, code: string): Promise<{ success: boolean }> {
+    try {
+      console.log('[Cognito] Confirming signup for:', email);
+      await confirmSignUp({
+        username: email,
+        confirmationCode: code
+      });
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Cognito] Confirmation error:', error);
+      throw new Error(error.message || 'Email verification failed');
+    }
   },
 
-  getToken() {
-    return localStorage.getItem('mallucupid_token');
-  },
+  /**
+   * Login user
+   */
+  async login(email: string, password: string): Promise<LoginResponse> {
+    if (backendAvailable === null) {
+      backendAvailable = await isBackendAvailable();
+    }
 
-  isAuthenticated() {
-    return !!this.getToken();
+    try {
+      // Try backend first
+      if (backendAvailable) {
+        const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          localStorage.setItem('mallucupid_token', data.token || '');
+          localStorage.setItem('mallucupid_user', JSON.stringify(data.user || {}));
+          return {
+            userSub: data.user?.id || email,
+            email: data.user?.email || email,
+            name: data.user?.name
+          };
+        }
+      }
+
+      // Fallback to Cognito
+      console.log('[Cognito] Logging in user:', email);
+      const user = await signIn({
+        username: email,
+        password: password
+      });
+
+      localStorage.setItem('mallucupid_token', `cognito_token_${Date.now()}`);
+      localStorage.setItem('mallucupid_user', JSON.stringify({ id: email, email }));
+
+      return {
+        userSub: user.userId || email,
+        email: email
+      };
+    } catch (error: any) {
+      console.error('[Auth] Login error:', error);
+
+      // Fallback to mock login
+      const mockUser = MOCK_USERS.find(u => u.email === email && u.password === password);
+      if (mockUser) {
+        localStorage.setItem('mallucupid_token', `mock_token_${Date.now()}`);
+        localStorage.setItem('mallucupid_user', JSON.stringify({ id: email, email, name: mockUser.name }));
+        return {
+          userSub: email,
+          email: email,
+          name: mockUser.name
+        };
+      }
+
+      throw new Error('Invalid email or password');
+    }
   },
 
   /**
@@ -376,6 +193,7 @@ export const authService = {
     }
 
     try {
+      // Try backend first
       if (backendAvailable) {
         const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
           method: 'POST',
@@ -383,53 +201,40 @@ export const authService = {
           body: JSON.stringify({ email })
         });
 
-        return await response.json();
+        if (response.ok) {
+          return await response.json();
+        }
       }
 
-      const nextResponse = await fetch(`${NEXT_API_BASE}/api/auth/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      });
+      // Fallback to Cognito - initiate password reset
+      console.log('[Cognito] Requesting password reset for:', email);
+      await resetPassword({ username: email });
 
-      if (nextResponse.ok) {
-        return await nextResponse.json();
-      }
-      throw new Error('');
-    } catch (error) {
-      console.log('[Auth] Using mock password reset request');
-      await new Promise(resolve => setTimeout(resolve, 800));
+      return {
+        success: true,
+        message: 'If this email exists, you will receive a password reset code'
+      };
+    } catch (error: any) {
+      console.error('[Auth] Forgot password error:', error);
 
-      const user = MOCK_USERS.find(u => u.email.toLowerCase() === email.toLowerCase());
-
-      if (!user) {
-        return {
-          success: true,
-          message: "If this email exists, you'll receive a reset link shortly"
-        };
-      }
-
+      // Fallback to mock - always return success for security
       const resetToken = `reset_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const resetData = {
         email,
         token: resetToken,
         expiresAt: Date.now() + 15 * 60 * 1000
       };
-
       sessionStorage.setItem(`reset_${resetToken}`, JSON.stringify(resetData));
-
-      console.log(`[MOCK] Sending reset link to ${email}:`);
-      console.log(`Reset link: /reset-password?token=${resetToken}`);
 
       return {
         success: true,
-        message: 'Reset link sent to your email'
+        message: 'If this email exists, you will receive a password reset code'
       };
     }
   },
 
   /**
-   * Reset password with token
+   * Reset password with code or token
    */
   async resetPassword(resetToken: string, newPassword: string): Promise<OTPResponse> {
     if (backendAvailable === null) {
@@ -437,6 +242,7 @@ export const authService = {
     }
 
     try {
+      // Try backend first
       if (backendAvailable) {
         const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
           method: 'POST',
@@ -444,64 +250,172 @@ export const authService = {
           body: JSON.stringify({ token: resetToken, newPassword })
         });
 
-        return await response.json();
+        if (response.ok) {
+          return await response.json();
+        }
       }
 
-      const nextResponse = await fetch(`${NEXT_API_BASE}/api/auth/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: resetToken, password: newPassword })
-      });
-
-      if (nextResponse.ok) {
-        return await nextResponse.json();
-      }
-      throw new Error('');
-    } catch (error) {
-      console.log('[Auth] Using mock password reset');
-      await new Promise(resolve => setTimeout(resolve, 800));
-
+      // Check if this is a mock token
       const resetDataStr = sessionStorage.getItem(`reset_${resetToken}`);
+      if (resetDataStr) {
+        try {
+          const resetData = JSON.parse(resetDataStr);
+          if (Date.now() > resetData.expiresAt) {
+            sessionStorage.removeItem(`reset_${resetToken}`);
+            return {
+              success: false,
+              message: 'Reset link has expired'
+            };
+          }
 
-      if (!resetDataStr) {
-        return {
-          success: false,
-          message: 'Invalid or expired reset link'
-        };
-      }
+          // Cognito confirmResetPassword would need email too
+          // For token-based resets, use mock only
+          const userIndex = MOCK_USERS.findIndex(u => u.email === resetData.email);
+          if (userIndex !== -1) {
+            MOCK_USERS[userIndex].password = newPassword;
+          }
 
-      try {
-        const resetData = JSON.parse(resetDataStr);
-
-        if (Date.now() > resetData.expiresAt) {
           sessionStorage.removeItem(`reset_${resetToken}`);
           return {
+            success: true,
+            message: 'Password reset successfully'
+          };
+        } catch {
+          return {
             success: false,
-            message: 'Reset link has expired. Please request a new one.'
+            message: 'Failed to reset password'
           };
         }
-
-        const userIndex = MOCK_USERS.findIndex(
-          u => u.email.toLowerCase() === resetData.email.toLowerCase()
-        );
-
-        if (userIndex !== -1) {
-          MOCK_USERS[userIndex].password = newPassword;
-          console.log(`[MOCK] Password updated for ${resetData.email}`);
-        }
-
-        sessionStorage.removeItem(`reset_${resetToken}`);
-
-        return {
-          success: true,
-          message: 'Password reset successfully'
-        };
-      } catch (parseError) {
-        return {
-          success: false,
-          message: 'Failed to reset password'
-        };
       }
+
+      return {
+        success: false,
+        message: 'Invalid or expired reset link'
+      };
+    } catch (error: any) {
+      console.error('[Auth] Reset password error:', error);
+      throw new Error(error.message || 'Password reset failed');
     }
   },
+
+  /**
+   * Get current authenticated user
+   */
+  async getCurrentUser(): Promise<any> {
+    try {
+      const userStr = localStorage.getItem('mallucupid_user');
+      if (userStr) {
+        return JSON.parse(userStr);
+      }
+
+      // Try Cognito
+      const user = await getCurrentUser();
+      return user;
+    } catch (error: any) {
+      console.error('[Auth] Get current user error:', error);
+      return null;
+    }
+  },
+
+  /**
+   * Logout user
+   */
+  async logout(): Promise<{ success: boolean }> {
+    try {
+      // Try Cognito logout
+      try {
+        await signOut();
+      } catch {
+        // Cognito not configured or user not authenticated
+      }
+
+      // Clear local storage
+      localStorage.removeItem('mallucupid_token');
+      localStorage.removeItem('mallucupid_user');
+      localStorage.removeItem('mallucupid_role');
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Auth] Logout error:', error);
+      // Always clear local storage even if logout fails
+      localStorage.removeItem('mallucupid_token');
+      localStorage.removeItem('mallucupid_user');
+      return { success: true };
+    }
+  },
+
+  /**
+   * Get authentication token
+   */
+  getToken(): string | null {
+    return localStorage.getItem('mallucupid_token');
+  },
+
+  /**
+   * Check if user is authenticated
+   */
+  isAuthenticated(): boolean {
+    return !!this.getToken();
+  },
+
+  /**
+   * Change password for authenticated user
+   */
+  async changePassword(oldPassword: string, newPassword: string): Promise<{ success: boolean }> {
+    try {
+      const user = await getCurrentUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Backend API would handle this
+      const response = await fetch(`${API_BASE_URL}/api/auth/change-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.getToken()}`
+        },
+        body: JSON.stringify({ oldPassword, newPassword })
+      });
+
+      if (response.ok) {
+        return { success: true };
+      }
+
+      throw new Error('Change password failed');
+    } catch (error: any) {
+      console.error('[Auth] Change password error:', error);
+      throw new Error(error.message || 'Password change failed');
+    }
+  },
+
+  /**
+   * Get ID token
+   */
+  async getIdToken(): Promise<string> {
+    try {
+      const user = await getCurrentUser();
+      if (user) {
+        return '';
+      }
+      return this.getToken() || '';
+    } catch {
+      return '';
+    }
+  },
+
+  /**
+   * Get access token
+   */
+  async getAccessToken(): Promise<string> {
+    try {
+      const user = await getCurrentUser();
+      if (user) {
+        return '';
+      }
+      return this.getToken() || '';
+    } catch {
+      return '';
+    }
+  }
 };
