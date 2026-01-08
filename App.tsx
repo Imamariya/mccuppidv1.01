@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Amplify } from 'aws-amplify';
-import awsconfig from './src/aws-exports';
+import awsconfig from './src/aws-exports.js';
 import DesktopBlocker from './components/DesktopBlocker';
 import LandingPage from './app/page';
 import LoginPage from './app/login/page';
