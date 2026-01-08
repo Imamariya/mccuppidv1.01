@@ -78,6 +78,9 @@ const SignupStepOTP: React.FC<SignupStepOTPProps> = ({
         <p className="text-zinc-400 text-sm">
           We've sent a 6-digit code to <span className="text-emerald-500">{email}</span>
         </p>
+        <p className="text-zinc-500 text-xs mt-3 px-4 py-2 bg-zinc-900 rounded-lg">
+          💡 <strong>Testing:</strong> Open browser console (F12) to see your verification code
+        </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">

@@ -136,11 +136,17 @@ export const authService = {
         attempts: 0
       };
       sessionStorage.setItem(`otp_${email}`, JSON.stringify(otpData));
-      console.log(`[MOCK] OTP for ${email}: ${otp} (expires in 10 minutes)`);
+      
+      // IMPORTANT: Log OTP to console for testing (since email service not configured)
+      console.warn(`========================================`);
+      console.warn(`📧 OTP FOR TESTING: ${otp}`);
+      console.warn(`📧 Email: ${email}`);
+      console.warn(`📧 Valid for 10 minutes`);
+      console.warn(`========================================`);
 
       return {
         success: true,
-        message: 'Verification code sent to your email'
+        message: `Verification code sent to ${email}. Check browser console for testing OTP.`
       };
     } catch (error: any) {
       console.error('[Auth] Send OTP error:', error);
@@ -226,6 +232,26 @@ export const authService = {
     } catch (error: any) {
       console.error('[Auth] Verify OTP error:', error);
       throw new Error(error.message || 'OTP verification failed');
+    }
+  },
+
+  /**
+   * Verify OTP and register user in one step
+   */
+  async verifyOTPAndRegister(email: string, otp: string, name: string, password: string): Promise<RegisterResponse> {
+    try {
+      // Verify OTP first
+      const verifyResult = await this.verifyOTP(email, otp);
+      if (!verifyResult.success) {
+        throw new Error(verifyResult.message || 'OTP verification failed');
+      }
+
+      // Then register the user
+      const registerResult = await this.register(name, email, password);
+      return registerResult;
+    } catch (error: any) {
+      console.error('[Auth] Verify OTP and Register error:', error);
+      throw new Error(error.message || 'Registration failed');
     }
   },
 
